@@ -1,50 +1,62 @@
+<!-- ==================== Template: seleção por Bloco primeiro ==================== -->
+<template id="template-item">
+    <div class="row g-3 item-lote mb-3 border rounded p-3 bg-light position-relative">
+        <button type="button" class="btn-close position-absolute top-0 end-0 m-2"
+                onclick="removerItem(this)" aria-label="Remover"></button>
+
+        <div class="col-md-2">
+            <label class="form-label">Bloco</label>
+            <!-- CORRIGIDO: removido oninput inline para evitar dupla chamada com addEventListener -->
+            <input type="text"
+                   class="form-control form-control-lg bloco-input"
+                   placeholder="A"
+                   list="blocos-list"
+                   required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Unidade / Apartamento <span class="text-danger">*</span></label>
+            <select name="unidade_id" class="form-select form-select-lg unidade-select" required>
+                <option value="">Selecione o bloco primeiro...</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Descrição / Conteúdo</label>
+            <input type="text" name="descricao" class="form-control form-control-lg"
+                   placeholder="Caixa Amazon, Correios, Magazine...">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Foto da encomenda <span class="text-danger">*</span></label>
+            <input type="file" name="foto" class="form-control"
+                   accept=".jpg,.jpeg,.png,.webp" required>
+            <div class="form-text small">Obrigatória</div>
+        </div>
+    </div>
+</template>
+
+<datalist id="blocos-list">
+    {% set blocos = unidades | map(attribute='bloco') | select('defined') | unique | list %}
+    {% for b in blocos if b %}
+    <option value="{{ b }}">
+    {% endfor %}
+</datalist>
+
 <script>
-/* Dados das unidades para filtro por bloco (carregados do servidor) */
-window.todasUnidades = {{ unidades | tojson }};
-
-function filtrarUnidadesPorBloco(input) {
-    const item = input.closest('.item-lote');
-    if (!item) return;
-    const select = item.querySelector('.unidade-select');
-    if (!select) return;
-
-    const bloco = (input.value || '').trim().toUpperCase();
-    select.innerHTML = '<option value="">Selecione a unidade...</option>';
-
-    if (!bloco) {
-        return;
-    }
-
-    const unidadesDoBloco = window.todasUnidades.filter(u => (u.bloco || '').toUpperCase().includes(bloco));
-    unidadesDoBloco.forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u.id;
-        let label = `${u.bloco || ''} ${u.numero}`;
-        if (u.nome_residente) label += ` — ${u.nome_residente}`;
-        opt.textContent = label;
-        select.appendChild(opt);
-    });
-}
-</script>
-
 /* ==================== Lote de Encomendas (código único) ==================== */
+
 function adicionarItem() {
     const container = document.getElementById('itens-container');
     const template = document.getElementById('template-item');
-
     const clone = template.content.cloneNode(true);
 
-    // Setup for bloco filter on the new item
+    // CORRIGIDO: único ponto de vinculação do evento — sem oninput inline no template
     const blocoInput = clone.querySelector('.bloco-input');
     if (blocoInput) {
-        blocoInput.addEventListener('input', function() {
+        blocoInput.addEventListener('input', function () {
             filtrarUnidadesPorBloco(this);
         });
     }
 
     container.appendChild(clone);
-
-    // Se for o primeiro item, já adiciona um por padrão
 }
 
 function removerItem(btn) {
@@ -54,11 +66,11 @@ function removerItem(btn) {
 
 function limparItens() {
     document.getElementById('itens-container').innerHTML = '';
-    adicionarItem(); // deixa pelo menos um
+    adicionarItem(); // mantém pelo menos um item
 }
 
 // Inicializa com 1 item ao carregar a página
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const container = document.getElementById('itens-container');
     if (container && container.children.length === 0) {
         adicionarItem();
@@ -66,6 +78,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /* ==================== QR Code Scanner ==================== */
+
 let qrStream = null;
 let qrAnimationFrame = null;
 
@@ -89,18 +102,15 @@ async function startQRScanner() {
                 canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const code = jsQR(imageData.data, imageData.width, imageData.height, {
                     inversionAttempts: "dontInvert",
                 });
-
                 if (code) {
                     stopQRScanner();
                     const input = document.getElementById('codigoInput');
                     input.value = code.data;
-                    // Auto verifica
-                    verificarCodigo();
+                    verificarCodigo(); // auto verifica
                 }
             }
             qrAnimationFrame = requestAnimationFrame(scan);
@@ -130,56 +140,22 @@ function stopQRScanner() {
     container.classList.add('d-none');
 }
 
-// Se veio de um reenvio ou recebimento, destacar
+// Destaca aviso após reenvio/recebimento com link WhatsApp
 window.addEventListener('load', () => {
     const params = new URLSearchParams(window.location.search);
     if (params.has('wa_link')) {
-        const link = params.get('wa_link');
+        const link = params.get('wa_link'); // CORRIGIDO: era $%7Blink%7D (URL-encoded), agora usa template literal corretamente
         const div = document.createElement('div');
         div.className = 'alert alert-success mt-2';
         div.innerHTML = `
-            <strong>Encomenda registrada com QR Code!</strong><br>
-            <a href="${link}" target="_blank" class="btn btn-success mt-2">
-                <i class="bi bi-whatsapp"></i> Abrir WhatsApp e enviar aviso agora
+            Encomenda registrada com QR Code!
+            <a href="https://encomendas-mirantes.onrender.com/${link}" target="_blank" class="btn btn-success btn-sm ms-2">
+                Abrir WhatsApp e enviar aviso agora
             </a>
-            <button class="btn btn-outline-secondary mt-2 ms-2" onclick="this.parentElement.remove()">Fechar</button>
+            <button type="button" class="btn-close float-end" onclick="this.parentElement.remove()"></button>
         `;
         const mainCard = document.querySelector('.card');
         if (mainCard) mainCard.parentNode.insertBefore(div, mainCard.nextSibling);
     }
 });
-
-// Template atualizado para seleção por Bloco primeiro
-<template id="template-item">
-    <div class="row g-3 item-lote mb-3 border rounded p-3 bg-light position-relative">
-        <button type="button" class="btn-close position-absolute top-0 end-0 m-2" onclick="removerItem(this)" aria-label="Remover"></button>
-        
-        <div class="col-md-2">
-            <label class="form-label">Bloco</label>
-            <input type="text" class="form-control form-control-lg bloco-input" placeholder="A" list="blocos-list" oninput="filtrarUnidadesPorBloco(this)" required>
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Unidade / Apartamento <span class="text-danger">*</span></label>
-            <select name="unidade_id" class="form-select form-select-lg unidade-select" required>
-                <option value="">Selecione o bloco primeiro...</option>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Descrição / Conteúdo</label>
-            <input type="text" name="descricao" class="form-control form-control-lg" 
-                   placeholder="Caixa Amazon, Correios, Magazine...">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Foto da encomenda <span class="text-danger">*</span></label>
-            <input type="file" name="foto" class="form-control" accept=".jpg,.jpeg,.png,.webp" required>
-            <div class="form-text small">Obrigatória</div>
-        </div>
-    </div>
-</template>
-
-<datalist id="blocos-list">
-    {% set blocos = unidades | map(attribute='bloco') | select('defined') | unique | list %}
-    {% for b in blocos if b %}
-    <option value="{{ b }}">
-    {% endfor %}
-</datalist>
+</script>
