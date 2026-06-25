@@ -909,6 +909,12 @@ def adicionar_unidade():
     sb = get_supabase()
     if sb:
         try:
+            # Verifica duplicado
+            existe = sb.table("unidades").select("id").eq("numero", numero).execute()
+            if existe.data:
+                flash('Já existe uma unidade com esse número.', 'danger')
+                return redirect(url_for('unidades'))
+
             sb.table("unidades").insert({
                 "numero": numero,
                 "telefone": telefone,
@@ -918,18 +924,24 @@ def adicionar_unidade():
             flash('Unidade cadastrada com sucesso!', 'success')
         except Exception as e:
             print("Erro Supabase add unidade:", e)
-            flash('Já existe uma unidade com esse número ou erro no banco nuvem.', 'danger')
+            flash('Erro no banco nuvem ao cadastrar a unidade.', 'danger')
     else:
         conn = get_db()
         try:
-            conn.execute(
-                "INSERT INTO unidades (numero, telefone, nome_residente, bloco) VALUES (?, ?, ?, ?)",
-                (numero, telefone, nome or None, bloco)
-            )
-            conn.commit()
-            flash('Unidade cadastrada com sucesso!', 'success')
-        except sqlite3.IntegrityError:
-            flash('Já existe uma unidade com esse número.', 'danger')
+            # Verifica duplicado
+            existe = conn.execute("SELECT id FROM unidades WHERE numero = ?", (numero,)).fetchone()
+            if existe:
+                flash('Já existe uma unidade com esse número.', 'danger')
+            else:
+                conn.execute(
+                    "INSERT INTO unidades (numero, telefone, nome_residente, bloco) VALUES (?, ?, ?, ?)",
+                    (numero, telefone, nome or None, bloco)
+                )
+                conn.commit()
+                flash('Unidade cadastrada com sucesso!', 'success')
+        except Exception as e:
+            print("Erro SQLite add unidade:", e)
+            flash('Erro ao cadastrar a unidade.', 'danger')
         finally:
             conn.close()
 
@@ -947,34 +959,83 @@ def editar_unidade(unidade_id):
         flash('Número da unidade e telefone são obrigatórios.', 'danger')
         return redirect(url_for('unidades'))
 
-    conn = get_db()
-    conn.execute('''
-        UPDATE unidades SET numero=?, telefone=?, nome_residente=?, bloco=?
-        WHERE id=?
-    ''', (numero, telefone, nome or None, bloco, unidade_id))
-    conn.commit()
-    conn.close()
+    sb = get_supabase()
+    if sb:
+        try:
+            # Verifica se o novo número já existe em outra unidade
+            existe = sb.table("unidades").select("id").eq("numero", numero).neq("id", unidade_id).execute()
+            if existe.data:
+                flash('Já existe outra unidade com esse número.', 'danger')
+                return redirect(url_for('unidades'))
 
-    flash('Unidade atualizada!', 'success')
+            sb.table("unidades").update({
+                "numero": numero,
+                "telefone": telefone,
+                "nome_residente": nome or None,
+                "bloco": bloco
+            }).eq("id", unidade_id).execute()
+            flash('Unidade atualizada!', 'success')
+        except Exception as e:
+            print("Erro Supabase editar unidade:", e)
+            flash('Erro ao atualizar no banco nuvem.', 'danger')
+    else:
+        conn = get_db()
+        try:
+            # Verifica duplicado
+            existe = conn.execute(
+                "SELECT id FROM unidades WHERE numero = ? AND id != ?",
+                (numero, unidade_id)
+            ).fetchone()
+            if existe:
+                flash('Já existe outra unidade com esse número.', 'danger')
+            else:
+                conn.execute('''
+                    UPDATE unidades SET numero=?, telefone=?, nome_residente=?, bloco=?
+                    WHERE id=?
+                ''', (numero, telefone, nome or None, bloco, unidade_id))
+                conn.commit()
+                flash('Unidade atualizada!', 'success')
+        except Exception as e:
+            print("Erro SQLite editar unidade:", e)
+            flash('Erro ao atualizar.', 'danger')
+        finally:
+            conn.close()
+
     return redirect(url_for('unidades'))
 
 
 @app.route('/unidades/excluir/<int:unidade_id>', methods=['POST'])
 def excluir_unidade(unidade_id):
-    conn = get_db()
-    # Só exclui se não tiver encomendas
-    tem = conn.execute(
-        "SELECT COUNT(*) FROM encomendas WHERE unidade_id = ?", (unidade_id,)
-    ).fetchone()[0]
+    sb = get_supabase()
+    if sb:
+        try:
+            # Verifica encomendas vinculadas
+            res = sb.table("encomendas").select("id", count="exact").eq("unidade_id", unidade_id).execute()
+            tem = res.count or 0
 
-    if tem > 0:
-        flash('Não é possível excluir: existem encomendas vinculadas a esta unidade.', 'danger')
+            if tem > 0:
+                flash('Não é possível excluir: existem encomendas vinculadas a esta unidade.', 'danger')
+            else:
+                sb.table("unidades").delete().eq("id", unidade_id).execute()
+                flash('Unidade removida.', 'success')
+        except Exception as e:
+            print("Erro Supabase excluir unidade:", e)
+            flash('Erro ao excluir no banco nuvem.', 'danger')
     else:
-        conn.execute("DELETE FROM unidades WHERE id = ?", (unidade_id,))
-        conn.commit()
-        flash('Unidade removida.', 'success')
+        conn = get_db()
+        # Só exclui se não tiver encomendas
+        tem = conn.execute(
+            "SELECT COUNT(*) FROM encomendas WHERE unidade_id = ?", (unidade_id,)
+        ).fetchone()[0]
 
-    conn.close()
+        if tem > 0:
+            flash('Não é possível excluir: existem encomendas vinculadas a esta unidade.', 'danger')
+        else:
+            conn.execute("DELETE FROM unidades WHERE id = ?", (unidade_id,))
+            conn.commit()
+            flash('Unidade removida.', 'success')
+
+        conn.close()
     return redirect(url_for('unidades'))
 
 
