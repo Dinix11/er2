@@ -372,6 +372,46 @@ def upload_foto_supabase(file, filename: str) -> str | None:
         return None
 
 
+def gerar_qr_code(codigo: str) -> str | None:
+    """Gera um QR Code para o código e faz upload no Supabase, retorna URL pública"""
+    sb = get_supabase()
+    if not sb:
+        return None
+    try:
+        import qrcode
+        from io import BytesIO
+
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(codigo)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        bucket = "fotos"
+        path = f"qrcodes/{codigo}.png"
+        content = buffer.getvalue()
+
+        # Upload (upsert para permitir reenvio)
+        sb.storage.from_(bucket).upload(
+            path, 
+            content, 
+            {"content-type": "image/png", "upsert": "true"}
+        )
+        public_url = sb.storage.from_(bucket).get_public_url(path)
+        return public_url
+    except Exception as e:
+        print("Erro ao gerar QR Code:", e)
+        return None
+
+
 @app.route('/')
 def index():
     conn = get_db()
@@ -546,6 +586,9 @@ def receber():
         flash('Nenhuma encomenda válida foi registrada.', 'danger')
         return redirect(url_for('index'))
 
+    # Gera QR Code para o lote (em vez de código textual)
+    qr_url = gerar_qr_code(codigo)
+
     # Notificação WhatsApp
     wa_link = None
     if primeira_unidade:
@@ -560,19 +603,20 @@ def receber():
             intro = "Olá!\n\nVocê recebeu as seguintes encomendas no condomínio:"
 
         lista_itens = "\n".join(f"• {item['descricao']} (Unidade {item['unidade']})" for item in itens_descricao)
+        qr_text = qr_url or "QR Code disponível no sistema"
 
         msg = (
             f"{intro}\n\n"
             f"{lista_itens}\n\n"
             f"Recebido em: {data_receb[:16]}\n\n"
-            f"🔐 SEU CÓDIGO ÚNICO DE RETIRADA: *{codigo}*\n\n"
-            f"Apresente este código no setor de entregas para retirar todas as suas encomendas."
+            f"🔐 Escaneie este QR Code para retirar suas encomendas no setor de entregas:\n{qr_text}\n\n"
+            f"Apresente o QR Code ao responsável para retirar."
         )
         wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
         registrar_notificacao(ids_inseridos[0], telefone, msg, wa_link)
 
     qtd = len(ids_inseridos)
-    msg_flash = f'{qtd} encomendas registradas com sucesso! O código único foi enviado ao morador via WhatsApp.'
+    msg_flash = f'{qtd} encomendas registradas com sucesso! O QR Code foi enviado ao morador via WhatsApp.'
     flash(msg_flash, 'success')
 
     return redirect(url_for('index', wa_link=wa_link))
@@ -963,8 +1007,8 @@ def reenviar(encomenda_id):
         f"Unidade: {unidade_label}\n"
         f"Descrição: {row['descricao'] or 'Encomenda'}\n"
         f"Recebido em: {row['data_recebimento'][:16]}\n\n"
-        f"🔐 SEU CÓDIGO DE RETIRADA: *{row['codigo']}*\n\n"
-        f"Apresente este código no setor de entregas para retirar."
+        f"🔐 Escaneie este QR Code para retirar sua encomenda:\n{gerar_qr_code(row['codigo']) or 'QR indisponível'}\n\n"
+        f"Apresente o QR Code no setor de entregas para retirar."
     )
 
     wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"

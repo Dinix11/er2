@@ -52,23 +52,37 @@
 <!-- Dar baixa / Entregar -->
 <div class="card mb-4 border-primary shadow-sm">
     <div class="card-header bg-primary text-white">
-        <h5 class="mb-0"><i class="bi bi-box-arrow-in-down me-2"></i>Entregar Encomenda (Dar Baixa)</h5>
+        <h5 class="mb-0"><i class="bi bi-box-arrow-in-down me-2"></i>Entregar Encomenda (Escanear QR Code)</h5>
     </div>
     <div class="card-body">
         <form id="formEntregar" action="/entregar" method="post" class="row g-3 align-items-end">
             <div class="col-md-6">
-                <label class="form-label fw-semibold">Código informado pelo morador</label>
+                <label class="form-label fw-semibold">QR Code ou código do morador</label>
                 <input type="text" 
                        class="form-control form-control-lg codigo-display text-uppercase" 
                        id="codigoInput" 
                        name="codigo" 
-                       placeholder="EX: AB12CD" 
-                       maxlength="8" 
-                       autocomplete="off"
-                       required>
+                       placeholder="Escaneie o QR ou digite o código" 
+                       maxlength="20" 
+                       autocomplete="off">
                 <div class="form-text">
-                    O morador informa verbalmente o código que recebeu por WhatsApp.<br>
-                    <span class="text-danger">Este código nunca aparece nas telas da administração.</span>
+                    O morador apresenta o QR Code gerado. Use o scanner abaixo ou digite como fallback.<br>
+                    <span class="text-danger">O QR Code nunca é exibido para o setor de entregas.</span>
+                </div>
+
+                <!-- QR Scanner -->
+                <div class="mt-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="startQRScanner()">
+                        <i class="bi bi-camera me-1"></i> Escanear QR Code do morador
+                    </button>
+                </div>
+
+                <div id="qr-scanner-container" class="mt-3 d-none border rounded p-2 bg-light">
+                    <video id="qr-video" playsinline style="width:100%; max-height:240px; border-radius:4px;"></video>
+                    <div class="d-flex gap-2 mt-2">
+                        <button type="button" class="btn btn-danger btn-sm flex-fill" onclick="stopQRScanner()">Cancelar</button>
+                        <span class="small text-muted align-self-center">Aponte a câmera para o QR Code</span>
+                    </div>
                 </div>
             </div>
             <div class="col-md-3">
@@ -78,7 +92,7 @@
             </div>
             <div class="col-md-3">
                 <button type="button" onclick="verificarCodigo()" class="btn btn-outline-primary btn-lg w-100">
-                    <i class="bi bi-search me-2"></i> Verificar Código
+                    <i class="bi bi-search me-2"></i> Verificar QR / Código
                 </button>
             </div>
         </form>
@@ -103,14 +117,14 @@
                 <!-- Suporte a lote -->
                 <div id="verifLote" class="d-none">
                     <div class="mb-2">
-                        <strong id="verifLoteQtd"></strong> encomendas encontradas com este código.
+                        <strong id="verifLoteQtd"></strong> encomendas encontradas com este QR Code.
                     </div>
                     <div id="verifLoteItens" class="small"></div>
                 </div>
 
                 <div class="mt-2">
                     <button type="button" onclick="confirmarEntregaVerificada()" class="btn btn-success">
-                        <i class="bi bi-check-lg"></i> Confirmar entrega com este código
+                        <i class="bi bi-check-lg"></i> Confirmar entrega com este QR Code
                     </button>
                     <button type="button" onclick="cancelarVerificacao()" class="btn btn-outline-secondary ms-1">Cancelar</button>
                 </div>
@@ -126,7 +140,7 @@
 <!-- Receber encomendas (suporte a lote com código único) -->
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Receber Encomendas (Lote com Código Único)</h5>
+        <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Receber Encomendas (Lote com QR Code)</h5>
         <button type="button" class="btn btn-sm btn-outline-primary" onclick="adicionarItem()">
             <i class="bi bi-plus-lg"></i> Adicionar outra encomenda
         </button>
@@ -139,15 +153,15 @@
 
             <div class="mt-3 d-flex gap-2">
                 <button type="submit" class="btn btn-primary btn-lg">
-                    <i class="bi bi-camera me-2"></i> Registrar Todas + Gerar Código Único
+                    <i class="bi bi-camera me-2"></i> Registrar Todas + Gerar QR Code
                 </button>
                 <button type="button" onclick="limparItens()" class="btn btn-outline-secondary">
                     Limpar
                 </button>
             </div>
             <div class="form-text mt-1">
-                Todas as encomendas deste lote receberão <strong>um único código</strong> de retirada.<br>
-                <small class="text-danger">O código é enviado exclusivamente ao morador via WhatsApp e nunca é exibido para o setor de entregas.</small>
+                Todas as encomendas deste lote receberão <strong>um único QR Code</strong> de retirada.<br>
+                <small class="text-danger">O QR Code é enviado exclusivamente ao morador via WhatsApp e nunca é exibido para o setor de entregas.</small>
             </div>
         </form>
     </div>
@@ -390,6 +404,71 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+/* ==================== QR Code Scanner ==================== */
+let qrStream = null;
+let qrAnimationFrame = null;
+
+async function startQRScanner() {
+    const container = document.getElementById('qr-scanner-container');
+    const video = document.getElementById('qr-video');
+    container.classList.remove('d-none');
+    container.classList.add('d-block');
+
+    try {
+        qrStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment" } 
+        });
+        video.srcObject = qrStream;
+        await video.play();
+
+        const scan = () => {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                if (code) {
+                    stopQRScanner();
+                    const input = document.getElementById('codigoInput');
+                    input.value = code.data;
+                    // Auto verifica
+                    verificarCodigo();
+                }
+            }
+            qrAnimationFrame = requestAnimationFrame(scan);
+        };
+        qrAnimationFrame = requestAnimationFrame(scan);
+
+    } catch (err) {
+        alert("Não foi possível acessar a câmera. Permita o acesso ou use a digitação manual.");
+        stopQRScanner();
+    }
+}
+
+function stopQRScanner() {
+    const container = document.getElementById('qr-scanner-container');
+    const video = document.getElementById('qr-video');
+
+    if (qrAnimationFrame) {
+        cancelAnimationFrame(qrAnimationFrame);
+        qrAnimationFrame = null;
+    }
+    if (qrStream) {
+        qrStream.getTracks().forEach(track => track.stop());
+        qrStream = null;
+    }
+    video.srcObject = null;
+    container.classList.remove('d-block');
+    container.classList.add('d-none');
+}
+
 // Se veio de um reenvio ou recebimento, destacar
 window.addEventListener('load', () => {
     const params = new URLSearchParams(window.location.search);
@@ -398,7 +477,7 @@ window.addEventListener('load', () => {
         const div = document.createElement('div');
         div.className = 'alert alert-success mt-2';
         div.innerHTML = `
-            <strong>Encomenda registrada!</strong><br>
+            <strong>Encomenda registrada com QR Code!</strong><br>
             <a href="${link}" target="_blank" class="btn btn-success mt-2">
                 <i class="bi bi-whatsapp"></i> Abrir WhatsApp e enviar aviso agora
             </a>
