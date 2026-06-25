@@ -556,6 +556,10 @@ def index():
         if conn:
             conn.close()
 
+    # Normalize para lista de dicts (para JS tojson)
+    if unidades and not isinstance(unidades[0], dict):
+        unidades = [dict(u) for u in unidades]
+
     return render_template(
         'index.html',
         pendentes=pendentes,
