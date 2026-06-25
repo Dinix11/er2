@@ -43,6 +43,13 @@ static/uploads/
 *.gif
 *.webp
 
+# But allow PWA icons
+!static/icons/*.png
+!static/icons/*.jpg
+!static/icons/*.jpeg
+!static/icons/*.gif
+!static/icons/*.webp
+
 # IDE
 .idea/
 .vscode/
