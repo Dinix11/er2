@@ -1,6 +1,6 @@
 # Sistema de Recebimento, Aviso e Entrega de Encomendas
 
-Sistema completo para condomínios gerenciar o fluxo de encomendas na portaria.
+Sistema completo para condomínios gerenciar o fluxo de encomendas no setor de entregas.
 
 ## Funcionalidades
 
@@ -28,7 +28,7 @@ Sistema completo para condomínios gerenciar o fluxo de encomendas na portaria.
   - Histórico completo com filtros
   - Gerenciamento de unidades e telefones
   - Reenvio de notificação WhatsApp a qualquer momento
-  - Interface simples, responsiva e otimizada para portaria
+  - Interface simples, responsiva e otimizada para setor de entregas
 
 ## Como Executar
 
@@ -144,7 +144,7 @@ O sistema já está configurado para aceitar conexões da rede.
 ## Personalização
 
 - Para mudar o nome do condomínio, edite o arquivo `templates/base.html`
-- Para adicionar autenticação simples (senha da portaria), pode ser implementado posteriormente
+- Para adicionar autenticação simples (senha do setor de entregas), pode ser implementado posteriormente
 - Para integração automática com WhatsApp oficial (sem precisar clicar), pode-se integrar com:
   - WhatsApp Business API (Meta)
   - Twilio
@@ -161,7 +161,7 @@ condominio-encomendas/
 │   └── uploads/           # Fotos das encomendas
 ├── templates/
 │   ├── base.html
-│   ├── index.html         # Painel da portaria
+│   ├── index.html         # Painel do setor de entregas
 │   ├── unidades.html
 │   └── historico.html
 └── README.md
@@ -169,4 +169,4 @@ condominio-encomendas/
 
 ---
 
-Desenvolvido para uso prático em portaria de condomínios.
+Desenvolvido para uso prático em setor de entregas de condomínios.

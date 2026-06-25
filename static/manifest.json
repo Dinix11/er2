@@ -1,7 +1,7 @@
 {
   "name": "Encomendas Condomínio",
   "short_name": "Encomendas",
-  "description": "Sistema de recebimento e entrega de encomendas para portaria",
+  "description": "Sistema de recebimento e entrega de encomendas para setor de entregas",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

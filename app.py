@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Sistema de Recebimento, Aviso e Entrega de Encomendas
-Condomínio - Portaria
+Condomínio - Setor de Entregas
 """
 
 import os
@@ -34,7 +34,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'condominio-encomendas-dev-key-202
 
 # Senha simples para proteção (configure ADMIN_PASSWORD nas variáveis de ambiente no Render)
 # MUDE ESSA SENHA! Nunca use o valor padrão em produção.
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'portaria123')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'setordentregas123')
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -566,7 +566,7 @@ def receber():
             f"{lista_itens}\n\n"
             f"Recebido em: {data_receb[:16]}\n\n"
             f"🔐 SEU CÓDIGO ÚNICO DE RETIRADA: *{codigo}*\n\n"
-            f"Apresente este código na portaria para retirar todas as suas encomendas."
+            f"Apresente este código no setor de entregas para retirar todas as suas encomendas."
         )
         wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
         registrar_notificacao(ids_inseridos[0], telefone, msg, wa_link)
@@ -602,7 +602,7 @@ def entregar():
             sb.table("encomendas").update({
                 "status": "entregue",
                 "data_entrega": data_entrega,
-                "entregue_por": "Portaria"
+                "entregue_por": "Setor de Entregas"
             }).eq("codigo", codigo).eq("status", "pendente").execute()
 
             qtd = len(pendentes)
@@ -637,7 +637,7 @@ def entregar():
             UPDATE encomendas 
             SET status = 'entregue', data_entrega = ?, entregue_por = ?
             WHERE codigo = ? AND status = 'pendente'
-        ''', (data_entrega, 'Portaria', codigo))
+        ''', (data_entrega, 'Setor de Entregas', codigo))
         conn.commit()
 
         qtd = len(pendentes)
@@ -964,7 +964,7 @@ def reenviar(encomenda_id):
         f"Descrição: {row['descricao'] or 'Encomenda'}\n"
         f"Recebido em: {row['data_recebimento'][:16]}\n\n"
         f"🔐 SEU CÓDIGO DE RETIRADA: *{row['codigo']}*\n\n"
-        f"Apresente este código na portaria para retirar."
+        f"Apresente este código no setor de entregas para retirar."
     )
 
     wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
