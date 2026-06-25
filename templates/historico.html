@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Histórico de Encomendas{% endblock %}
+
+{% block content %}
+<h4 class="mb-3"><i class="bi bi-clock-history me-2"></i>Histórico de Encomendas</h4>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form class="row g-2 align-items-end" method="get">
+            <div class="col-md-5">
+                <label class="form-label small">Buscar</label>
+                <input type="text" name="filtro" class="form-control" value="{{ filtro }}" placeholder="Unidade, nome ou descrição">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Status</label>
+                <select name="status" class="form-select">
+                    <option value="todas" {% if status == 'todas' %}selected{% endif %}>Todas</option>
+                    <option value="pendente" {% if status == 'pendente' %}selected{% endif %}>Pendentes</option>
+                    <option value="entregue" {% if status == 'entregue' %}selected{% endif %}>Entregues</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+                <a href="/historico" class="btn btn-outline-secondary">Limpar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Data Recebimento</th>
+                    <th>Unidade</th>
+                    <th>Descrição</th>
+                    <th>Status</th>
+                    <th>Data Entrega</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in encomendas %}
+                <tr>
+                    <td class="small">{{ e.data_recebimento }}</td>
+                    <td>
+                        <strong>{{ e.bloco or '' }} {{ e.numero }}</strong><br>
+                        <span class="text-muted small">{{ e.nome_residente or '' }}</span>
+                    </td>
+                    <td>{{ e.descricao or '—' }}</td>
+                    <td>
+                        {% if e.status == 'pendente' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                        {% else %}
+                            <span class="badge bg-success">Entregue</span>
+                        {% endif %}
+                    </td>
+                    <td class="small">{{ e.data_entrega or '—' }}</td>
+                    <td>
+                        {% if e.foto_path %}
+                            <button onclick="mostrarFoto('/foto/{{ e.foto_path }}')" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-image"></i>
+                            </button>
+                        {% endif %}
+                        {% if e.status == 'pendente' %}
+                            <a href="{{ url_for('reenviar', encomenda_id=e.id) }}" class="btn btn-sm btn-success">
+                                <i class="bi bi-whatsapp"></i>
+                            </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">Nenhum registro encontrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="mt-2 small text-muted">
+    O código de retirada é conhecido apenas pelo morador. A portaria nunca visualiza os códigos.
+</div>
+{% endblock %}

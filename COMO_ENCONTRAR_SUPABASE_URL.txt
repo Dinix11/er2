@@ -1,0 +1,39 @@
+COMO ENCONTRAR O SUPABASE_URL E A CHAVE (GUIA ATUALIZADO)
+
+O Supabase mudou a interface. O menu "API" NÃO fica no menu principal do projeto.
+
+Siga EXATAMENTE estes passos:
+
+1. Abra seu projeto no Supabase.
+
+2. No CANTO INFERIOR ESQUERDO da tela, clique no ícone de ENgrenagem (⚙️).
+   O nome é "Project Settings".
+
+3. Depois de clicar na engrenagem, vai aparecer um menu à esquerda.
+   Clique na opção chamada **API**.
+
+4. Na página que abriu, olhe no TOPO:
+   - Tem um campo chamado **Project URL**
+   - Copie tudo que está escrito (ex: https://seu-projeto.supabase.co)
+   → Isso é o SUPABASE_URL
+
+5. Role um pouco a página para baixo até a seção **API Keys**:
+   - Você vai ver duas chaves:
+     • anon public      ← COPIE ESTA (é a que começa com eyJ...)
+     • service_role     ← NÃO COPIE
+
+   Clique no botão de copiar da chave "anon public".
+   → Isso é o SUPABASE_KEY
+
+Importante:
+- Se você está vendo "API KEY" e "Data API", você já está na página certa.
+- Fique na visão principal (não entre na aba "Data API").
+- "Project URL" fica em cima.
+- "API Keys" é a parte com as chaves (use a "anon").
+
+Depois de copiar as duas informações, crie um arquivo chamado `.env` na pasta do projeto e coloque:
+
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Salve e rode o programa de novo.

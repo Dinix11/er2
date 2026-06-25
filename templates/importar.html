@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Importar Unidades do WhatsApp{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-3">
+    <a href="/unidades" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+    <h4 class="mb-0"><i class="bi bi-upload me-2"></i>Importar Unidades de Contatos WhatsApp</h4>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <p class="mb-2">
+            Cole a lista de contatos ou envie um arquivo CSV / TXT com os dados dos proprietários.
+            O sistema tentará extrair automaticamente: <strong>Nome</strong>, <strong>Bloco</strong>, <strong>Apartamento</strong> e <strong>Telefone</strong>.
+        </p>
+
+        <div class="row">
+            <!-- Upload de arquivo -->
+            <div class="col-md-6">
+                <form method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Enviar arquivo</label>
+                        <input type="file" name="arquivo" class="form-control" accept=".csv,.txt,.vcf">
+                        <div class="form-text">
+                            CSV com colunas (nome, bloco, apartamento, telefone) ou arquivo de texto simples (uma linha por contato).
+                        </div>
+                    </div>
+                    <button type="submit" name="acao" value="preview" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Analisar Arquivo
+                    </button>
+                </form>
+            </div>
+
+            <!-- Colar texto -->
+            <div class="col-md-6">
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Ou cole aqui a lista de contatos</label>
+                        <textarea name="texto" class="form-control" rows="5" placeholder="Exemplos:
+João Silva - Bloco A Apto 101 - 5511987654321
+Maria Santos Bloco B 202 11987654322
+Carlos - Apt 305 +55 11 99999-0000"></textarea>
+                        <div class="form-text">Uma linha por contato. Funciona bem com exportações de contatos.</div>
+                    </div>
+                    <button type="submit" name="acao" value="preview" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Analisar Texto Colado
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if preview %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><strong>{{ preview|length }}</strong> contatos detectados</span>
+        <span class="text-muted small">Revise e corrija antes de importar</span>
+    </div>
+    <div class="card-body p-0">
+        <form method="post" id="formImportar">
+            <input type="hidden" name="acao" value="importar">
+
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="checkAll" checked onchange="toggleAll(this)">
+                            </th>
+                            <th>Nome do Proprietário</th>
+                            <th>Bloco</th>
+                            <th>Apartamento / Número</th>
+                            <th>Telefone WhatsApp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in preview %}
+                        {% set idx = loop.index0 %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="indices" value="{{ idx }}" checked>
+                            </td>
+                            <td>
+                                <input type="text" name="nome_{{ idx }}" class="form-control form-control-sm" value="{{ c.nome }}">
+                            </td>
+                            <td style="width: 100px;">
+                                <input type="text" name="bloco_{{ idx }}" class="form-control form-control-sm text-center" value="{{ c.bloco }}">
+                            </td>
+                            <td style="width: 160px;">
+                                <input type="text" name="numero_{{ idx }}" class="form-control form-control-sm" value="{{ c.numero }}" required>
+                            </td>
+                            <td>
+                                <input type="text" name="telefone_{{ idx }}" class="form-control form-control-sm" value="{{ c.telefone }}" required>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card-footer">
+                <button type="submit" class="btn btn-success btn-lg">
+                    <i class="bi bi-check2-circle me-2"></i> Importar Unidades Selecionadas
+                </button>
+                <a href="/unidades/importar" class="btn btn-outline-secondary ms-2">Cancelar</a>
+                <span class="text-muted small ms-3">
+                    Se o apartamento já existir, os dados serão atualizados.
+                </span>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleAll(master) {
+    document.querySelectorAll('input[name="indices"]').forEach(cb => {
+        cb.checked = master.checked;
+    });
+}
+</script>
+{% else %}
+<div class="alert alert-info">
+    <strong>Dica:</strong> Para melhor resultado, use um arquivo CSV com as colunas:
+    <code>nome,bloco,apartamento,telefone</code>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistema de Encomendas{% endblock %} • Condomínio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        :root {
+            --primary: #0d6efd;
+        }
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar-brand {
+            font-weight: 600;
+            letter-spacing: -.5px;
+        }
+        .card-encomenda {
+            transition: transform .1s ease, box-shadow .1s ease;
+        }
+        .card-encomenda:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,.08);
+        }
+        .foto-thumb {
+            width: 100%;
+            height: 140px;
+            object-fit: cover;
+            border-radius: .5rem;
+            border: 1px solid #dee2e6;
+            cursor: pointer;
+        }
+        .codigo-display {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 1.75rem;
+            letter-spacing: 3px;
+            font-weight: 700;
+        }
+        .stat-card {
+            border: none;
+            box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+        }
+        .table-sm td, .table-sm th {
+            vertical-align: middle;
+        }
+        .modal-foto .modal-body {
+            padding: 0;
+        }
+        .modal-foto img {
+            width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+        }
+        .badge-pendente {
+            background-color: #ffc107;
+            color: #000;
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <i class="bi bi-box-seam me-2"></i>
+                <span>Condomínio • Encomendas</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="nav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/"><i class="bi bi-speedometer2 me-1"></i> Painel</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/unidades"><i class="bi bi-people me-1"></i> Unidades</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/historico"><i class="bi bi-clock-history me-1"></i> Histórico</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'danger' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="text-center text-muted py-3 small">
+        Sistema de recebimento e entrega de encomendas • Portaria
+    </footer>
+
+    <!-- Modal de foto -->
+    <div class="modal fade modal-foto" id="modalFoto" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Foto da Encomenda</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center bg-dark">
+                    <img id="fotoModalImg" src="" alt="Foto da encomenda" class="img-fluid">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/sw.js')
+            .then(registration => {
+              console.log('SW registered: ', registration);
+            })
+            .catch(registrationError => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+    </script>
+    <script>
+        function mostrarFoto(src) {
+            document.getElementById('fotoModalImg').src = src;
+            const modal = new bootstrap.Modal(document.getElementById('modalFoto'));
+            modal.show();
+        }
+
+        // Atalho: Enter no campo de código entrega
+        document.addEventListener('DOMContentLoaded', function() {
+            const codigoInput = document.getElementById('codigoInput');
+            if (codigoInput) {
+                codigoInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.getElementById('formEntregar').dispatchEvent(new Event('submit', {bubbles:true}));
+                    }
+                });
+            }
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

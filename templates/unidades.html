@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciar Unidades{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="bi bi-people me-2"></i>Unidades Cadastradas</h4>
+    <div>
+        <a href="/unidades/importar" class="btn btn-success me-2">
+            <i class="bi bi-upload me-1"></i> Importar do WhatsApp / CSV
+        </a>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAdicionar">
+            <i class="bi bi-plus-lg"></i> Nova Unidade
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Unidade</th>
+                    <th>Nome do Residente</th>
+                    <th>Telefone</th>
+                    <th class="text-center">Pendentes</th>
+                    <th class="text-end">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in unidades %}
+                <tr>
+                    <td>
+                        <strong>{{ u.bloco or '' }} {{ u.numero }}</strong>
+                    </td>
+                    <td>{{ u.nome_residente or '<span class="text-muted">Não informado</span>' | safe }}</td>
+                    <td>
+                        <code>{{ u.telefone }}</code>
+                    </td>
+                    <td class="text-center">
+                        {% set q = pend_map.get(u.id, 0) %}
+                        {% if q > 0 %}
+                            <span class="badge bg-warning text-dark">{{ q }} pendente{% if q > 1 %}s{% endif %}</span>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#modalEditar{{ u.id }}">
+                            Editar
+                        </button>
+                        <form action="/unidades/excluir/{{ u.id }}" method="post" class="d-inline"
+                              onsubmit="return confirm('Excluir esta unidade?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+
+                <!-- Modal Editar -->
+                <div class="modal fade" id="modalEditar{{ u.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="/unidades/editar/{{ u.id }}" method="post">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Editar Unidade {{ u.numero }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Número / Apartamento</label>
+                                        <input type="text" name="numero" class="form-control" value="{{ u.numero }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Telefone (WhatsApp)</label>
+                                        <input type="text" name="telefone" class="form-control" value="{{ u.telefone }}" required>
+                                        <div class="form-text">Ex: 5511987654321 (com código do país)</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Nome do Residente</label>
+                                        <input type="text" name="nome_residente" class="form-control" value="{{ u.nome_residente or '' }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Bloco</label>
+                                        <input type="text" name="bloco" class="form-control" value="{{ u.bloco or '' }}">
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Adicionar -->
+<div class="modal fade" id="modalAdicionar" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/unidades/adicionar" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cadastrar Nova Unidade</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Número da Unidade / Apartamento *</label>
+                        <input type="text" name="numero" class="form-control" placeholder="101, 15B, A-203..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Telefone WhatsApp *</label>
+                        <input type="text" name="telefone" class="form-control" placeholder="5511987654321" required>
+                        <div class="form-text">Inclua o DDD e código do país (55 para Brasil). Exemplo: 5511987654321</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nome do Residente</label>
+                            <input type="text" name="nome_residente" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Bloco</label>
+                            <input type="text" name="bloco" class="form-control" placeholder="Bloco A">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Cadastrar Unidade</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<p class="text-muted mt-3 small">
+    O telefone cadastrado será usado para enviar o aviso com o código de retirada via WhatsApp. 
+    <strong>O código nunca é exibido para a administração.</strong>
+</p>
+{% endblock %}
