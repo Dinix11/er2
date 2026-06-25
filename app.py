@@ -45,12 +45,16 @@ if not globals().get('_supabase_startup_logged'):
     globals()['_supabase_startup_logged'] = True
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_KEY")
+    print("=== SUPABASE ENV CHECK (Render) ===")
+    print(f"SUPABASE_URL present: {bool(supabase_url)} | value starts with: {str(supabase_url)[:30] if supabase_url else 'None'}")
+    print(f"SUPABASE_KEY present: {bool(supabase_key)} | value starts with: {str(supabase_key)[:10] if supabase_key else 'None'}")
     if supabase_url and supabase_key:
         print("✅ SUPABASE CONFIGURADO - usando banco na nuvem (dados persistem após reinício no Render)")
     else:
         print("⚠️  SUPABASE NÃO CONFIGURADO - usando SQLite local (dados serão perdidos ao reiniciar)")
         print(f"   DEBUG: SUPABASE_URL = {'PRESENTE' if supabase_url else 'AUSENTE'}")
         print(f"   DEBUG: SUPABASE_KEY = {'PRESENTE' if supabase_key else 'AUSENTE'}")
+    print("====================================")
 
 # Proteção por senha simples
 def login_required(f):
