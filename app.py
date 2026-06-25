@@ -624,12 +624,20 @@ def receber():
         # Monta descrições
         descricoes_lista = "\n".join(f"• {item['descricao']} (Unidade {item['unidade']})" for item in itens_descricao)
 
-        # Monta links das fotos (somente URLs públicas completas do Supabase)
+        # Monta links das fotos (sempre URL completa quando possível)
         fotos_links = []
         for i, item in enumerate(itens_descricao, 1):
             fu = item.get('foto_url')
-            if fu and str(fu).startswith('http'):
+            if fu:
+                if not str(fu).startswith('http'):
+                    try:
+                        base = request.url_root.rstrip('/')
+                        fu = base + (fu if fu.startswith('/') else '/' + fu)
+                    except:
+                        pass
                 fotos_links.append(f"Foto {i}: {fu}")
+            else:
+                fotos_links.append(f"Foto {i}: sem foto")
             else:
                 # Foto foi tirada mas sem link público (use o app ou verifique Supabase)
                 fotos_links.append(f"Foto {i}: registrada no sistema")
@@ -640,7 +648,7 @@ def receber():
         if fotos_links:
             fotos_part = "\n\nFotos do(s) pacote(s):\n" + "\n".join(fotos_links)
         else:
-            fotos_part = "\n\nFotos do(s) pacote(s): registradas no sistema (links públicos não disponíveis)"
+            fotos_part = "\n\nFotos do(s) pacote(s): sem fotos"
 
         msg = (
             f"{intro}\n\n"
@@ -648,7 +656,7 @@ def receber():
             f"{fotos_part}\n\n"
             f"Recebido em: {data_receb[:16]}\n\n"
             f"🔐 Escaneie o QR Code abaixo para retirar suas encomendas no setor de entregas:\n{qr_text}\n\n"
-            f"Toque nos links para visualizar."
+            f"Toque nos links das fotos para visualizá-las e no QR Code para retirar."
         )
         wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
         registrar_notificacao(ids_inseridos[0], telefone, msg, wa_link)
@@ -1065,7 +1073,13 @@ def reenviar(encomenda_id):
     foto = row.get('foto_url') or row.get('foto_path')
     if not foto and isinstance(row.get('unidades'), dict):
         foto = row.get('unidades').get('foto_url') or row.get('unidades').get('foto_path')  # unlikely
-    if foto and str(foto).startswith('http'):
+    if foto:
+        if not str(foto).startswith('http'):
+            try:
+                base = request.url_root.rstrip('/')
+                foto = base + (foto if foto.startswith('/') else '/' + foto)
+            except:
+                pass
         msg += f"Foto: {foto}\n"
     qr = gerar_qr_code(row.get('codigo'))
     msg += (
