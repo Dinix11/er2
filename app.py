@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Sistema de Recebimento, Aviso e Entrega de Encomendas
 Condomínio - Setor de Entregas
 """
+from __future__ import annotations
 
 import os
 import sqlite3
@@ -638,9 +640,6 @@ def receber():
                 fotos_links.append(f"Foto {i}: {fu}")
             else:
                 fotos_links.append(f"Foto {i}: sem foto")
-            else:
-                # Foto foi tirada mas sem link público (use o app ou verifique Supabase)
-                fotos_links.append(f"Foto {i}: registrada no sistema")
 
         qr_text = qr_url or "QR Code disponível no sistema"
 
@@ -650,14 +649,10 @@ def receber():
         else:
             fotos_part = "\n\nFotos do(s) pacote(s): sem fotos"
 
-        msg = (
-            f"{intro}\n\n"
-            f"{descricoes_lista}"
-            f"{fotos_part}\n\n"
-            f"Recebido em: {data_receb[:16]}\n\n"
-            f"🔐 Escaneie o QR Code abaixo para retirar suas encomendas no setor de entregas:\n{qr_text}\n\n"
-            f"Toque nos links das fotos para visualizá-las e no QR Code para retirar."
-        )
+        msg = intro + "\n\n" + descricoes_lista + fotos_part + "\n\n" + \
+              "Recebido em: " + data_receb[:16] + "\n\n" + \
+              "🔐 Escaneie o QR Code abaixo para retirar suas encomendas no setor de entregas:\n" + qr_text + "\n\n" + \
+              "Toque nos links das fotos para visualizá-las e no QR Code para retirar."
         wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
         registrar_notificacao(ids_inseridos[0], telefone, msg, wa_link)
 
