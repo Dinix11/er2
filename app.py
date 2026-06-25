@@ -11,7 +11,8 @@ import string
 from datetime import datetime
 from urllib.parse import quote
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, session
+from functools import wraps
 import re
 import csv
 from io import StringIO
@@ -31,7 +32,28 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 app.secret_key = os.environ.get('SECRET_KEY', 'condominio-encomendas-dev-key-2026')
 
+# Senha simples para proteção (configure ADMIN_PASSWORD nas variáveis de ambiente no Render)
+# MUDE ESSA SENHA! Nunca use o valor padrão em produção.
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'portaria123')
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Proteção por senha simples
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.before_request
+def require_login():
+    # Permite acesso a login, logout e arquivos estáticos sem autenticação
+    if request.endpoint in ('login', 'logout') or (request.endpoint and request.endpoint.startswith('static')):
+        return None
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
 
 # Supabase (nuvem gratuita)
 supabase: Client = None
@@ -506,8 +528,9 @@ def receber():
             unidade = u_res.data[0] if u_res.data else None
         else:
             conn = get_db()
-            unidade = conn.execute("SELECT * FROM unidades WHERE id = ?", (uid,)).fetchone()
+            row = conn.execute("SELECT * FROM unidades WHERE id = ?", (uid,)).fetchone()
             conn.close()
+            unidade = dict(row) if row else None
 
         if unidade:
             u_label = f"{unidade.get('bloco') or ''} {unidade.get('numero')}".strip()
@@ -955,6 +978,27 @@ def api_unidades():
     unidades = conn.execute("SELECT id, numero, nome_residente, bloco FROM unidades ORDER BY bloco, numero").fetchall()
     conn.close()
     return jsonify([dict(u) for u in unidades])
+
+
+# ==================== LOGIN SIMPLES COM SENHA ====================
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        if password == ADMIN_PASSWORD:
+            session['logged_in'] = True
+            flash('Login realizado com sucesso!', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Senha incorreta.', 'danger')
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    flash('Você saiu do sistema.', 'info')
+    return redirect(url_for('login'))
 
 
 if __name__ == '__main__':
