@@ -23,16 +23,6 @@ import requests  # para upload se necessário
 from dotenv import load_dotenv
 load_dotenv()  # carrega variáveis do .env para desenvolvimento local
 
-# === LOG DE SUPABASE NO INÍCIO (visível no Render com Gunicorn) ===
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_KEY")
-if supabase_url and supabase_key:
-    print("✅ SUPABASE CONFIGURADO - usando banco na nuvem (dados persistem após reinício no Render)")
-else:
-    print("⚠️  SUPABASE NÃO CONFIGURADO - usando SQLite local (dados serão perdidos ao reiniciar)")
-    print(f"   DEBUG: SUPABASE_URL = {'PRESENTE' if supabase_url else 'AUSENTE'}")
-    print(f"   DEBUG: SUPABASE_KEY = {'PRESENTE' if supabase_key else 'AUSENTE'}")
-
 # Configuração
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
@@ -49,6 +39,18 @@ app.secret_key = os.environ.get('SECRET_KEY', 'condominio-encomendas-dev-key-202
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'setordentregas123')
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# === LOG DE SUPABASE (executa no import, visível no Gunicorn do Render) ===
+if not globals().get('_supabase_startup_logged'):
+    globals()['_supabase_startup_logged'] = True
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_KEY")
+    if supabase_url and supabase_key:
+        print("✅ SUPABASE CONFIGURADO - usando banco na nuvem (dados persistem após reinício no Render)")
+    else:
+        print("⚠️  SUPABASE NÃO CONFIGURADO - usando SQLite local (dados serão perdidos ao reiniciar)")
+        print(f"   DEBUG: SUPABASE_URL = {'PRESENTE' if supabase_url else 'AUSENTE'}")
+        print(f"   DEBUG: SUPABASE_KEY = {'PRESENTE' if supabase_key else 'AUSENTE'}")
 
 # Proteção por senha simples
 def login_required(f):
