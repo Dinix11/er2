@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Sistema de Encomendas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <h4 class="text-center mb-4">Acesso à Portaria</h4>
+                
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Senha de Acesso</label>
+                        <input type="password" name="password" class="form-control form-control-lg" required autofocus>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-lg w-100">
+                        Entrar
+                    </button>
+                </form>
+                
+                <p class="text-muted small text-center mt-3">
+                    Acesso restrito à equipe da portaria.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
