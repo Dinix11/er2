@@ -20,14 +20,14 @@
     </div>
     <div class="col-6 col-md-3">
         <div class="card stat-card text-center py-3">
-            <div class="fs-2 fw-bold text-primary">{{ total_hoje }}</div>
-            <div class="text-muted small">Recebidas hoje</div>
+            <div class="fs-2 fw-bold text-primary">{{ unidades | length }}</div>
+            <div class="text-muted small">Unidades</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="card stat-card text-center py-3">
-            <div class="fs-2 fw-bold text-secondary">{{ total_geral }}</div>
-            <div class="text-muted small">Total geral</div>
+            <div class="fs-2 fw-bold text-secondary">{{ ultimas | length }}</div>
+            <div class="text-muted small">Últ. entregues</div>
         </div>
     </div>
 </div>
@@ -46,7 +46,7 @@
                 </button>
             </div>
             <div class="card-body">
-                <form method="post" action="/registrar" enctype="multipart/form-data" id="formRegistrar">
+                <form method="post" action="/receber" enctype="multipart/form-data" id="formRegistrar">
                     <div id="itens-container"></div>
 
                     <datalist id="blocos-list">
@@ -58,7 +58,7 @@
 
                     <div class="d-flex gap-2 mt-3">
                         <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
-                            <i class="bi bi-send me-2"></i>Registrar e Notificar via WhatsApp
+                            <i class="bi bi-whatsapp me-2"></i>Registrar e Notificar via WhatsApp
                         </button>
                         <button type="button" class="btn btn-outline-secondary" onclick="limparItens()" title="Limpar tudo">
                             <i class="bi bi-trash"></i>
@@ -79,17 +79,15 @@
                         <input type="text" id="codigoInput" name="codigo"
                                class="form-control codigo-display text-center text-uppercase"
                                placeholder="CÓDIGO DE RETIRADA"
-                               autocomplete="off" autocorrect="off" autocapitalize="characters"
-                               spellcheck="false">
+                               autocomplete="off" autocorrect="off"
+                               autocapitalize="characters" spellcheck="false">
                         <button type="submit" class="btn btn-success px-4">
                             <i class="bi bi-check-lg"></i> Confirmar
                         </button>
                     </div>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-outline-secondary w-100" onclick="startQRScanner()">
-                            <i class="bi bi-qr-code-scan me-1"></i> Escanear QR Code
-                        </button>
-                    </div>
+                    <button type="button" class="btn btn-outline-secondary w-100" onclick="startQRScanner()">
+                        <i class="bi bi-qr-code-scan me-1"></i> Escanear QR Code
+                    </button>
                 </form>
 
                 {# Scanner QR Code #}
@@ -101,12 +99,6 @@
                         <i class="bi bi-x-circle me-1"></i> Cancelar Scanner
                     </button>
                 </div>
-
-                {% if resultado_entrega %}
-                <div class="alert alert-{{ 'success' if resultado_entrega.ok else 'danger' }} mt-3 mb-0">
-                    {{ resultado_entrega.mensagem }}
-                </div>
-                {% endif %}
             </div>
         </div>
 
@@ -122,38 +114,38 @@
                 {% endif %}
             </div>
 
-            {% if encomendas_pendentes %}
+            {% if pendentes_lista %}
             <div class="list-group list-group-flush">
-                {% for e in encomendas_pendentes %}
+                {% for e in pendentes_lista %}
                 <div class="list-group-item px-3 py-2">
                     <div class="d-flex gap-3 align-items-start">
                         {% if e.foto_path %}
                         <img src="/foto/{{ e.foto_path }}"
                              class="foto-thumb"
-                             style="width:70px; height:70px; flex-shrink:0;"
+                             style="width:70px;height:70px;flex-shrink:0;"
                              onclick="mostrarFoto('/foto/{{ e.foto_path }}')"
                              alt="Foto">
                         {% else %}
                         <div class="d-flex align-items-center justify-content-center bg-light rounded border"
-                             style="width:70px; height:70px; flex-shrink:0;">
+                             style="width:70px;height:70px;flex-shrink:0;">
                             <i class="bi bi-image text-muted fs-4"></i>
                         </div>
                         {% endif %}
 
-                        <div class="flex-grow-1 min-width-0">
-                            <div class="fw-semibold">
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="fw-semibold text-truncate">
                                 {{ e.bloco or '' }} {{ e.numero }}
                                 {% if e.nome_residente %}
                                 <span class="fw-normal text-muted">— {{ e.nome_residente }}</span>
                                 {% endif %}
                             </div>
-                            <div class="text-muted small">{{ e.descricao or 'Sem descrição' }}</div>
+                            <div class="text-muted small text-truncate">{{ e.descricao or 'Sem descrição' }}</div>
                             <div class="text-muted small">
-                                <i class="bi bi-clock me-1"></i>{{ e.data_recebimento }}
+                                <i class="bi bi-clock me-1"></i>{{ e.data_recebimento[:16] if e.data_recebimento else '' }}
                             </div>
                         </div>
 
-                        <div class="d-flex flex-column gap-1 align-items-end">
+                        <div>
                             <a href="{{ url_for('reenviar', encomenda_id=e.id) }}"
                                class="btn btn-sm btn-outline-success"
                                title="Reenviar aviso WhatsApp">
@@ -172,8 +164,8 @@
 
             {% else %}
             <div class="card-body text-center text-muted py-5">
-                <i class="bi bi-check2-all fs-1 text-success"></i>
-                <p class="mt-2 mb-0">Nenhuma encomenda pendente.</p>
+                <i class="bi bi-check2-all fs-1 text-success d-block mb-2"></i>
+                Nenhuma encomenda pendente.
             </div>
             {% endif %}
         </div>
@@ -186,13 +178,10 @@
     <div class="row g-3 item-lote mb-3 border rounded p-3 bg-light position-relative">
         <button type="button" class="btn-close position-absolute top-0 end-0 m-2"
                 onclick="removerItem(this)" aria-label="Remover"></button>
-
         <div class="col-md-2">
             <label class="form-label">Bloco</label>
-            <input type="text"
-                   class="form-control form-control-lg bloco-input"
-                   placeholder="A"
-                   list="blocos-list">
+            <input type="text" class="form-control form-control-lg bloco-input"
+                   placeholder="A" list="blocos-list">
         </div>
         <div class="col-md-4">
             <label class="form-label">Unidade / Apartamento <span class="text-danger">*</span></label>
@@ -219,60 +208,65 @@
 
 {% block scripts %}
 <script>
-/* ==================== Dados de unidades para filtro por bloco ==================== */
+/* ===== Dados de unidades injetados pelo Flask ===== */
 const todasUnidades = {{ unidades | tojson }};
 
+/* ===== Filtro por bloco ===== */
 function filtrarUnidadesPorBloco(input) {
-    const blocoDigitado = input.value.trim().toUpperCase();
+    const bloco = input.value.trim().toUpperCase();
     const row = input.closest('.item-lote');
     const select = row.querySelector('.unidade-select');
-    select.innerHTML = '';
 
-    const filtradas = blocoDigitado
-        ? todasUnidades.filter(u => (u.bloco || '').toUpperCase() === blocoDigitado)
+    const filtradas = bloco
+        ? todasUnidades.filter(u => (u.bloco || '').toUpperCase() === bloco)
         : todasUnidades;
 
-    if (filtradas.length === 0) {
+    select.innerHTML = '';
+
+    if (!filtradas.length) {
         select.innerHTML = '<option value="">Nenhuma unidade neste bloco</option>';
         return;
     }
 
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = 'Selecione a unidade...';
+    const placeholder = new Option('Selecione a unidade...', '');
     select.appendChild(placeholder);
 
     filtradas.forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u.id;
-        opt.textContent = (u.bloco ? u.bloco + ' ' : '') + u.numero
-                        + (u.nome_residente ? ' — ' + u.nome_residente : '');
-        select.appendChild(opt);
+        const label = (u.bloco ? u.bloco + ' ' : '') + u.numero
+                    + (u.nome_residente ? ' — ' + u.nome_residente : '');
+        select.appendChild(new Option(label, u.id));
     });
 }
 
-/* ==================== Lote de Encomendas ==================== */
+/* ===== Lote de Encomendas ===== */
 function adicionarItem() {
     const container = document.getElementById('itens-container');
-    const template = document.getElementById('template-item');
-    const clone = template.content.cloneNode(true);
+    const clone = document.getElementById('template-item').content.cloneNode(true);
 
     const blocoInput = clone.querySelector('.bloco-input');
-    if (blocoInput) {
-        blocoInput.addEventListener('input', function () {
-            filtrarUnidadesPorBloco(this);
-        });
-        // Popula o select com todas as unidades desde o início
-        setTimeout(() => filtrarUnidadesPorBloco(blocoInput), 0);
-    }
+    blocoInput.addEventListener('input', function () {
+        filtrarUnidadesPorBloco(this);
+    });
 
+    // Popula o select com todas as unidades já ao adicionar
     container.appendChild(clone);
+    const lastSelect = container.lastElementChild.querySelector('.unidade-select');
+    if (lastSelect && todasUnidades.length) {
+        const ph = new Option('Selecione a unidade...', '');
+        lastSelect.innerHTML = '';
+        lastSelect.appendChild(ph);
+        todasUnidades.forEach(u => {
+            const label = (u.bloco ? u.bloco + ' ' : '') + u.numero
+                        + (u.nome_residente ? ' — ' + u.nome_residente : '');
+            lastSelect.appendChild(new Option(label, u.id));
+        });
+    }
 }
 
 function removerItem(btn) {
-    const item = btn.closest('.item-lote');
-    if (document.querySelectorAll('.item-lote').length > 1) {
-        item.remove();
+    const itens = document.querySelectorAll('.item-lote');
+    if (itens.length > 1) {
+        btn.closest('.item-lote').remove();
     } else {
         alert('É necessário manter pelo menos um item.');
     }
@@ -283,15 +277,12 @@ function limparItens() {
     adicionarItem();
 }
 
-// Inicializa com 1 item
 document.addEventListener('DOMContentLoaded', function () {
     const container = document.getElementById('itens-container');
-    if (container && container.children.length === 0) {
-        adicionarItem();
-    }
+    if (container && container.children.length === 0) adicionarItem();
 });
 
-/* ==================== QR Code Scanner ==================== */
+/* ===== QR Code Scanner ===== */
 let qrStream = null;
 let qrAnimationFrame = null;
 
@@ -300,12 +291,10 @@ async function startQRScanner() {
     const video = document.getElementById('qr-video');
     container.classList.remove('d-none');
     container.classList.add('d-block');
-
     try {
-        qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = qrStream;
         await video.play();
-
         const scan = () => {
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 const canvas = document.createElement('canvas');
@@ -314,21 +303,18 @@ async function startQRScanner() {
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "dontInvert"
-                });
+                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
                 if (code) {
                     stopQRScanner();
                     document.getElementById('codigoInput').value = code.data;
-                    verificarCodigo();
+                    document.getElementById('formEntregar').dispatchEvent(new Event('submit', { bubbles: true }));
                 }
             }
             qrAnimationFrame = requestAnimationFrame(scan);
         };
         qrAnimationFrame = requestAnimationFrame(scan);
-
     } catch (err) {
-        alert("Não foi possível acessar a câmera. Permita o acesso ou use a digitação manual.");
+        alert('Não foi possível acessar a câmera. Permita o acesso ou use a digitação manual.');
         stopQRScanner();
     }
 }
@@ -343,11 +329,7 @@ function stopQRScanner() {
     container.classList.add('d-none');
 }
 
-function verificarCodigo() {
-    document.getElementById('formEntregar').dispatchEvent(new Event('submit', { bubbles: true }));
-}
-
-/* ==================== Alerta de WhatsApp pós-registro ==================== */
+/* ===== Alerta WhatsApp pós-registro ===== */
 window.addEventListener('load', () => {
     const params = new URLSearchParams(window.location.search);
     if (params.has('wa_link')) {
@@ -357,13 +339,12 @@ window.addEventListener('load', () => {
         div.innerHTML = `
             <i class="bi bi-check-circle-fill me-2"></i>
             Encomenda registrada com sucesso!
-            <a href="https://encomendas-mirantes.onrender.com/${link}" target="_blank" class="btn btn-success btn-sm ms-2">
+            <a href="${link}" target="_blank" class="btn btn-success btn-sm ms-2">
                 <i class="bi bi-whatsapp me-1"></i>Enviar aviso agora
             </a>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
-        const mainContent = document.querySelector('.container');
-        if (mainContent) mainContent.prepend(div);
+        document.querySelector('.container').prepend(div);
     }
 });
 </script>
