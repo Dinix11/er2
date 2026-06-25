@@ -1,4 +1,187 @@
-<!-- ==================== Template: seleção por Bloco primeiro ==================== -->
+{% extends "base.html" %}
+
+{% block title %}Painel de Encomendas{% endblock %}
+
+{% block content %}
+
+{# ==================== Cards de Estatísticas ==================== #}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card stat-card text-center py-3">
+            <div class="fs-2 fw-bold text-warning">{{ pendentes }}</div>
+            <div class="text-muted small">Pendentes</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card text-center py-3">
+            <div class="fs-2 fw-bold text-success">{{ entregues_hoje }}</div>
+            <div class="text-muted small">Entregues hoje</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card text-center py-3">
+            <div class="fs-2 fw-bold text-primary">{{ total_hoje }}</div>
+            <div class="text-muted small">Recebidas hoje</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card text-center py-3">
+            <div class="fs-2 fw-bold text-secondary">{{ total_geral }}</div>
+            <div class="text-muted small">Total geral</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+
+    {# ==================== Coluna Esquerda: Registrar + Entregar ==================== #}
+    <div class="col-lg-7">
+
+        {# --- Registrar Encomendas em Lote --- #}
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-box-arrow-in-down me-2"></i><strong>Registrar Encomendas</strong></span>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="adicionarItem()">
+                    <i class="bi bi-plus-lg"></i> Adicionar item
+                </button>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/registrar" enctype="multipart/form-data" id="formRegistrar">
+                    <div id="itens-container"></div>
+
+                    <datalist id="blocos-list">
+                        {% set blocos = unidades | map(attribute='bloco') | select('defined') | unique | list %}
+                        {% for b in blocos if b %}
+                        <option value="{{ b }}">
+                        {% endfor %}
+                    </datalist>
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+                            <i class="bi bi-send me-2"></i>Registrar e Notificar via WhatsApp
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="limparItens()" title="Limpar tudo">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {# --- Entregar por Código --- #}
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-check2-circle me-2"></i><strong>Registrar Entrega</strong>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/entregar" id="formEntregar">
+                    <div class="input-group input-group-lg mb-2">
+                        <input type="text" id="codigoInput" name="codigo"
+                               class="form-control codigo-display text-center text-uppercase"
+                               placeholder="CÓDIGO DE RETIRADA"
+                               autocomplete="off" autocorrect="off" autocapitalize="characters"
+                               spellcheck="false">
+                        <button type="submit" class="btn btn-success px-4">
+                            <i class="bi bi-check-lg"></i> Confirmar
+                        </button>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="startQRScanner()">
+                            <i class="bi bi-qr-code-scan me-1"></i> Escanear QR Code
+                        </button>
+                    </div>
+                </form>
+
+                {# Scanner QR Code #}
+                <div id="qr-scanner-container" class="mt-3 d-none">
+                    <div class="ratio ratio-4x3 bg-black rounded overflow-hidden mb-2">
+                        <video id="qr-video" playsinline muted></video>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger w-100" onclick="stopQRScanner()">
+                        <i class="bi bi-x-circle me-1"></i> Cancelar Scanner
+                    </button>
+                </div>
+
+                {% if resultado_entrega %}
+                <div class="alert alert-{{ 'success' if resultado_entrega.ok else 'danger' }} mt-3 mb-0">
+                    {{ resultado_entrega.mensagem }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    {# ==================== Coluna Direita: Pendentes ==================== #}
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-hourglass-split me-2"></i><strong>Aguardando Retirada</strong></span>
+                {% if pendentes > 0 %}
+                <span class="badge bg-warning text-dark">{{ pendentes }}</span>
+                {% endif %}
+            </div>
+
+            {% if encomendas_pendentes %}
+            <div class="list-group list-group-flush">
+                {% for e in encomendas_pendentes %}
+                <div class="list-group-item px-3 py-2">
+                    <div class="d-flex gap-3 align-items-start">
+                        {% if e.foto_path %}
+                        <img src="/foto/{{ e.foto_path }}"
+                             class="foto-thumb"
+                             style="width:70px; height:70px; flex-shrink:0;"
+                             onclick="mostrarFoto('/foto/{{ e.foto_path }}')"
+                             alt="Foto">
+                        {% else %}
+                        <div class="d-flex align-items-center justify-content-center bg-light rounded border"
+                             style="width:70px; height:70px; flex-shrink:0;">
+                            <i class="bi bi-image text-muted fs-4"></i>
+                        </div>
+                        {% endif %}
+
+                        <div class="flex-grow-1 min-width-0">
+                            <div class="fw-semibold">
+                                {{ e.bloco or '' }} {{ e.numero }}
+                                {% if e.nome_residente %}
+                                <span class="fw-normal text-muted">— {{ e.nome_residente }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-muted small">{{ e.descricao or 'Sem descrição' }}</div>
+                            <div class="text-muted small">
+                                <i class="bi bi-clock me-1"></i>{{ e.data_recebimento }}
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-column gap-1 align-items-end">
+                            <a href="{{ url_for('reenviar', encomenda_id=e.id) }}"
+                               class="btn btn-sm btn-outline-success"
+                               title="Reenviar aviso WhatsApp">
+                                <i class="bi bi-whatsapp"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="card-footer text-end">
+                <a href="/historico?status=pendente" class="btn btn-sm btn-outline-secondary">
+                    Ver todas <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+
+            {% else %}
+            <div class="card-body text-center text-muted py-5">
+                <i class="bi bi-check2-all fs-1 text-success"></i>
+                <p class="mt-2 mb-0">Nenhuma encomenda pendente.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+{# ==================== Template de item de lote ==================== #}
 <template id="template-item">
     <div class="row g-3 item-lote mb-3 border rounded p-3 bg-light position-relative">
         <button type="button" class="btn-close position-absolute top-0 end-0 m-2"
@@ -6,12 +189,10 @@
 
         <div class="col-md-2">
             <label class="form-label">Bloco</label>
-            <!-- CORRIGIDO: removido oninput inline para evitar dupla chamada com addEventListener -->
             <input type="text"
                    class="form-control form-control-lg bloco-input"
                    placeholder="A"
-                   list="blocos-list"
-                   required>
+                   list="blocos-list">
         </div>
         <div class="col-md-4">
             <label class="form-label">Unidade / Apartamento <span class="text-danger">*</span></label>
@@ -33,27 +214,56 @@
     </div>
 </template>
 
-<datalist id="blocos-list">
-    {% set blocos = unidades | map(attribute='bloco') | select('defined') | unique | list %}
-    {% for b in blocos if b %}
-    <option value="{{ b }}">
-    {% endfor %}
-</datalist>
+{% endblock %}
 
+
+{% block scripts %}
 <script>
-/* ==================== Lote de Encomendas (código único) ==================== */
+/* ==================== Dados de unidades para filtro por bloco ==================== */
+const todasUnidades = {{ unidades | tojson }};
 
+function filtrarUnidadesPorBloco(input) {
+    const blocoDigitado = input.value.trim().toUpperCase();
+    const row = input.closest('.item-lote');
+    const select = row.querySelector('.unidade-select');
+    select.innerHTML = '';
+
+    const filtradas = blocoDigitado
+        ? todasUnidades.filter(u => (u.bloco || '').toUpperCase() === blocoDigitado)
+        : todasUnidades;
+
+    if (filtradas.length === 0) {
+        select.innerHTML = '<option value="">Nenhuma unidade neste bloco</option>';
+        return;
+    }
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Selecione a unidade...';
+    select.appendChild(placeholder);
+
+    filtradas.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = (u.bloco ? u.bloco + ' ' : '') + u.numero
+                        + (u.nome_residente ? ' — ' + u.nome_residente : '');
+        select.appendChild(opt);
+    });
+}
+
+/* ==================== Lote de Encomendas ==================== */
 function adicionarItem() {
     const container = document.getElementById('itens-container');
     const template = document.getElementById('template-item');
     const clone = template.content.cloneNode(true);
 
-    // CORRIGIDO: único ponto de vinculação do evento — sem oninput inline no template
     const blocoInput = clone.querySelector('.bloco-input');
     if (blocoInput) {
         blocoInput.addEventListener('input', function () {
             filtrarUnidadesPorBloco(this);
         });
+        // Popula o select com todas as unidades desde o início
+        setTimeout(() => filtrarUnidadesPorBloco(blocoInput), 0);
     }
 
     container.appendChild(clone);
@@ -61,15 +271,19 @@ function adicionarItem() {
 
 function removerItem(btn) {
     const item = btn.closest('.item-lote');
-    if (item) item.remove();
+    if (document.querySelectorAll('.item-lote').length > 1) {
+        item.remove();
+    } else {
+        alert('É necessário manter pelo menos um item.');
+    }
 }
 
 function limparItens() {
     document.getElementById('itens-container').innerHTML = '';
-    adicionarItem(); // mantém pelo menos um item
+    adicionarItem();
 }
 
-// Inicializa com 1 item ao carregar a página
+// Inicializa com 1 item
 document.addEventListener('DOMContentLoaded', function () {
     const container = document.getElementById('itens-container');
     if (container && container.children.length === 0) {
@@ -78,7 +292,6 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 /* ==================== QR Code Scanner ==================== */
-
 let qrStream = null;
 let qrAnimationFrame = null;
 
@@ -89,9 +302,7 @@ async function startQRScanner() {
     container.classList.add('d-block');
 
     try {
-        qrStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" }
-        });
+        qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         video.srcObject = qrStream;
         await video.play();
 
@@ -104,13 +315,12 @@ async function startQRScanner() {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "dontInvert",
+                    inversionAttempts: "dontInvert"
                 });
                 if (code) {
                     stopQRScanner();
-                    const input = document.getElementById('codigoInput');
-                    input.value = code.data;
-                    verificarCodigo(); // auto verifica
+                    document.getElementById('codigoInput').value = code.data;
+                    verificarCodigo();
                 }
             }
             qrAnimationFrame = requestAnimationFrame(scan);
@@ -126,36 +336,35 @@ async function startQRScanner() {
 function stopQRScanner() {
     const container = document.getElementById('qr-scanner-container');
     const video = document.getElementById('qr-video');
-
-    if (qrAnimationFrame) {
-        cancelAnimationFrame(qrAnimationFrame);
-        qrAnimationFrame = null;
-    }
-    if (qrStream) {
-        qrStream.getTracks().forEach(track => track.stop());
-        qrStream = null;
-    }
+    if (qrAnimationFrame) { cancelAnimationFrame(qrAnimationFrame); qrAnimationFrame = null; }
+    if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
     video.srcObject = null;
     container.classList.remove('d-block');
     container.classList.add('d-none');
 }
 
-// Destaca aviso após reenvio/recebimento com link WhatsApp
+function verificarCodigo() {
+    document.getElementById('formEntregar').dispatchEvent(new Event('submit', { bubbles: true }));
+}
+
+/* ==================== Alerta de WhatsApp pós-registro ==================== */
 window.addEventListener('load', () => {
     const params = new URLSearchParams(window.location.search);
     if (params.has('wa_link')) {
-        const link = params.get('wa_link'); // CORRIGIDO: era $%7Blink%7D (URL-encoded), agora usa template literal corretamente
+        const link = params.get('wa_link');
         const div = document.createElement('div');
-        div.className = 'alert alert-success mt-2';
+        div.className = 'alert alert-success alert-dismissible fade show mt-2';
         div.innerHTML = `
-            Encomenda registrada com QR Code!
+            <i class="bi bi-check-circle-fill me-2"></i>
+            Encomenda registrada com sucesso!
             <a href="https://encomendas-mirantes.onrender.com/${link}" target="_blank" class="btn btn-success btn-sm ms-2">
-                Abrir WhatsApp e enviar aviso agora
+                <i class="bi bi-whatsapp me-1"></i>Enviar aviso agora
             </a>
-            <button type="button" class="btn-close float-end" onclick="this.parentElement.remove()"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
-        const mainCard = document.querySelector('.card');
-        if (mainCard) mainCard.parentNode.insertBefore(div, mainCard.nextSibling);
+        const mainContent = document.querySelector('.container');
+        if (mainContent) mainContent.prepend(div);
     }
 });
 </script>
+{% endblock %}
