@@ -620,11 +620,11 @@ def receber():
         # Monta descrições
         descricoes_lista = "\n".join(f"• {item['descricao']} (Unidade {item['unidade']})" for item in itens_descricao)
 
-        # Monta links das fotos
+        # Monta links das fotos (somente URLs públicas completas do Supabase)
         fotos_links = []
         for i, item in enumerate(itens_descricao, 1):
             fu = item.get('foto_url')
-            if fu:
+            if fu and str(fu).startswith('http'):
                 fotos_links.append(f"Foto {i}: {fu}")
 
         qr_text = qr_url or "QR Code disponível no sistema"
