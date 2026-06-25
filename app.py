@@ -605,23 +605,29 @@ def receber():
         else:
             intro = "Olá!\n\nVocê recebeu as seguintes encomendas no condomínio:"
 
-        # Monta lista com fotos
-        lista_parts = []
-        for item in itens_descricao:
-            part = f"• {item['descricao']} (Unidade {item['unidade']})"
-            if item.get('foto_url') and str(item['foto_url']).startswith('http'):
-                part += f"\n  Foto: {item['foto_url']}"
-            lista_parts.append(part)
-        lista_itens = "\n".join(lista_parts)
+        # Monta descrições
+        descricoes_lista = "\n".join(f"• {item['descricao']} (Unidade {item['unidade']})" for item in itens_descricao)
+
+        # Monta links das fotos
+        fotos_links = []
+        for i, item in enumerate(itens_descricao, 1):
+            fu = item.get('foto_url')
+            if fu:
+                fotos_links.append(f"Foto {i}: {fu}")
 
         qr_text = qr_url or "QR Code disponível no sistema"
 
+        fotos_part = ""
+        if fotos_links:
+            fotos_part = "\n\nFotos do(s) pacote(s):\n" + "\n".join(fotos_links)
+
         msg = (
             f"{intro}\n\n"
-            f"{lista_itens}\n\n"
+            f"{descricoes_lista}"
+            f"{fotos_part}\n\n"
             f"Recebido em: {data_receb[:16]}\n\n"
             f"🔐 Escaneie o QR Code abaixo para retirar suas encomendas no setor de entregas:\n{qr_text}\n\n"
-            f"Toque nos links das fotos e do QR Code para visualizar."
+            f"Toque nos links para abrir as fotos e o QR Code."
         )
         wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
         registrar_notificacao(ids_inseridos[0], telefone, msg, wa_link)
@@ -995,35 +1001,52 @@ def foto(filename):
 @app.route('/reenviar/<int:encomenda_id>')
 def reenviar(encomenda_id):
     """Gera novamente o link do WhatsApp para reenvio"""
-    conn = get_db()
-    row = conn.execute('''
-        SELECT e.*, u.numero, u.nome_residente, u.bloco, u.telefone
-        FROM encomendas e
-        JOIN unidades u ON e.unidade_id = u.id
-        WHERE e.id = ?
-    ''', (encomenda_id,)).fetchone()
-    conn.close()
+    sb = get_supabase()
+    if sb:
+        try:
+            res = sb.table("encomendas").select("*, unidades!inner(numero, nome_residente, bloco, telefone)").eq("id", encomenda_id).execute()
+            row = res.data[0] if res.data else None
+        except Exception as e:
+            print("Erro Supabase reenviar:", e)
+            row = None
+    else:
+        conn = get_db()
+        row = conn.execute('''
+            SELECT e.*, u.numero, u.nome_residente, u.bloco, u.telefone
+            FROM encomendas e
+            JOIN unidades u ON e.unidade_id = u.id
+            WHERE e.id = ?
+        ''', (encomenda_id,)).fetchone()
+        conn.close()
 
     if not row:
         flash('Encomenda não encontrada.', 'danger')
         return redirect(url_for('index'))
 
-    telefone = limpar_telefone(row['telefone'])
-    unidade_label = f"{row['bloco'] or ''} {row['numero']}".strip()
-    nome = row['nome_residente'] or ''
+    # Normalize to dict for ease
+    if not isinstance(row, dict):
+        row = dict(row)
+
+    telefone = limpar_telefone(row.get('telefone') or (row.get('unidades') or {}).get('telefone'))
+    u = row.get('unidades') or row
+    unidade_label = f"{u.get('bloco') or ''} {u.get('numero')}".strip()
+    nome = u.get('nome_residente') or row.get('nome_residente') or ''
 
     msg = (
         f"Olá {nome}!\n\n"
         f"Você tem uma encomenda pendente no condomínio.\n"
         f"Unidade: {unidade_label}\n"
-        f"Descrição: {row['descricao'] or 'Encomenda'}\n"
-        f"Recebido em: {row['data_recebimento'][:16]}\n"
+        f"Descrição: {row.get('descricao') or 'Encomenda'}\n"
+        f"Recebido em: {str(row.get('data_recebimento', ''))[:16]}\n"
     )
     foto = row.get('foto_url') or row.get('foto_path')
+    if not foto and isinstance(row.get('unidades'), dict):
+        foto = row.get('unidades').get('foto_url') or row.get('unidades').get('foto_path')  # unlikely
     if foto and str(foto).startswith('http'):
         msg += f"Foto: {foto}\n"
+    qr = gerar_qr_code(row.get('codigo'))
     msg += (
-        f"\n🔐 Escaneie este QR Code para retirar sua encomenda:\n{gerar_qr_code(row['codigo']) or 'QR indisponível'}\n\n"
+        f"\n🔐 Escaneie este QR Code para retirar sua encomenda:\n{qr or 'QR indisponível'}\n\n"
         f"Apresente o QR Code no setor de entregas para retirar."
     )
 
