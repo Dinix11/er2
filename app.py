@@ -372,44 +372,46 @@ def upload_foto_supabase(file, filename: str) -> str | None:
         return None
 
 
-def gerar_qr_code(codigo: str) -> str | None:
-    """Gera um QR Code para o código e faz upload no Supabase, retorna URL pública"""
+def gerar_qr_code(codigo: str) -> str:
+    """Gera um QR Code para o código. Tenta Supabase Storage, fallback para gerador público."""
     sb = get_supabase()
-    if not sb:
-        return None
-    try:
-        import qrcode
-        from io import BytesIO
+    if sb:
+        try:
+            import qrcode
+            from io import BytesIO
 
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(codigo)
-        qr.make(fit=True)
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=4,
+            )
+            qr.add_data(codigo)
+            qr.make(fit=True)
 
-        img = qr.make_image(fill_color="black", back_color="white")
-        buffer = BytesIO()
-        img.save(buffer, format="PNG")
-        buffer.seek(0)
+            img = qr.make_image(fill_color="black", back_color="white")
+            buffer = BytesIO()
+            img.save(buffer, format="PNG")
+            buffer.seek(0)
 
-        bucket = "fotos"
-        path = f"qrcodes/{codigo}.png"
-        content = buffer.getvalue()
+            bucket = "fotos"
+            path = f"qrcodes/{codigo}.png"
+            content = buffer.getvalue()
 
-        # Upload (upsert para permitir reenvio)
-        sb.storage.from_(bucket).upload(
-            path, 
-            content, 
-            {"content-type": "image/png", "upsert": "true"}
-        )
-        public_url = sb.storage.from_(bucket).get_public_url(path)
-        return public_url
-    except Exception as e:
-        print("Erro ao gerar QR Code:", e)
-        return None
+            sb.storage.from_(bucket).upload(
+                path, 
+                content, 
+                {"content-type": "image/png", "upsert": True}
+            )
+            public_url = sb.storage.from_(bucket).get_public_url(path)
+            return public_url
+        except Exception as e:
+            print("Erro ao gerar/upload QR no Supabase:", e)
+            # Fallback para gerador público
+
+    # Fallback público (funciona sem Supabase)
+    from urllib.parse import quote
+    return f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={quote(codigo)}"
 
 
 @app.route('/')
@@ -609,8 +611,8 @@ def receber():
             f"{intro}\n\n"
             f"{lista_itens}\n\n"
             f"Recebido em: {data_receb[:16]}\n\n"
-            f"🔐 Escaneie este QR Code para retirar suas encomendas no setor de entregas:\n{qr_text}\n\n"
-            f"Apresente o QR Code ao responsável para retirar."
+            f"🔐 Escaneie o QR Code abaixo para retirar suas encomendas no setor de entregas:\n{qr_text}\n\n"
+            f"Toque no link para abrir a imagem do QR Code."
         )
         wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
         registrar_notificacao(ids_inseridos[0], telefone, msg, wa_link)
