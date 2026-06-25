@@ -30,6 +30,8 @@ if supabase_url and supabase_key:
     print("✅ SUPABASE CONFIGURADO - usando banco na nuvem (dados persistem após reinício no Render)")
 else:
     print("⚠️  SUPABASE NÃO CONFIGURADO - usando SQLite local (dados serão perdidos ao reiniciar)")
+    print(f"   DEBUG: SUPABASE_URL = {'PRESENTE' if supabase_url else 'AUSENTE'}")
+    print(f"   DEBUG: SUPABASE_KEY = {'PRESENTE' if supabase_key else 'AUSENTE'}")
 
 # Configuração
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
