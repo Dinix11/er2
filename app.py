@@ -70,6 +70,18 @@ def get_supabase() -> Client | None:
     return supabase
 
 
+def _row_to_dict(row):
+    """Convert sqlite3.Row or Supabase dict to regular dict"""
+    if row is None:
+        return None
+    if isinstance(row, dict):
+        return row
+    try:
+        return dict(row)
+    except:
+        return row
+
+
 def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
@@ -1018,14 +1030,16 @@ def reenviar(encomenda_id):
             WHERE e.id = ?
         ''', (encomenda_id,)).fetchone()
         conn.close()
+        if row:
+            row = dict(row)
 
     if not row:
         flash('Encomenda não encontrada.', 'danger')
         return redirect(url_for('index'))
 
-    # Normalize to dict for ease
-    if not isinstance(row, dict):
-        row = dict(row)
+    row = _row_to_dict(row)
+    if row is None:
+        row = {}
 
     telefone = limpar_telefone(row.get('telefone') or (row.get('unidades') or {}).get('telefone'))
     u = row.get('unidades') or row
