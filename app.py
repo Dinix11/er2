@@ -374,13 +374,17 @@ def upload_foto_supabase(file, filename: str) -> str | None:
         path = f"encomendas/{datetime.now().strftime('%Y%m%d')}/{filename}"
         # Lê o conteúdo
         content = file.read()
-        # Upload
-        sb.storage.from_(bucket).upload(path, content, {"content-type": file.content_type or "image/jpeg"})
+        # Upload com opções corretas para Supabase Python client
+        file_options = {
+            "contentType": file.content_type or "image/jpeg",
+            "upsert": True
+        }
+        sb.storage.from_(bucket).upload(path, content, file_options)
         # URL pública (assumindo bucket público)
         public_url = sb.storage.from_(bucket).get_public_url(path)
         return public_url
     except Exception as e:
-        print("Erro upload Supabase:", e)
+        print("Erro upload Supabase foto:", e)
         return None
 
 
@@ -533,21 +537,21 @@ def receber():
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         safe_name = f"{timestamp}_{i}_{filename}"
 
-        # Foto
-        foto_url = None
+        # Sempre salvar localmente para o web UI funcionar
+        caminho = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
+        foto.seek(0)
+        foto.save(caminho)
+        foto_url = f"/foto/{safe_name}"
+
+        # Se Supabase configurado, fazer upload para obter URL pública (para mensagem WhatsApp e DB)
         if sb:
-            foto.seek(0)  # reset
-            foto_url = upload_foto_supabase(foto, safe_name)
-            if not foto_url:
-                # fallback local se falhar
-                caminho = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
+            try:
                 foto.seek(0)
-                foto.save(caminho)
-                foto_url = f"/foto/{safe_name}"
-        else:
-            caminho = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
-            foto.save(caminho)
-            foto_url = f"/foto/{safe_name}"
+                public_url = upload_foto_supabase(foto, safe_name)
+                if public_url:
+                    foto_url = public_url  # usar a pública
+            except Exception as e:
+                print("Upload foto Supabase falhou (usando local):", e)
 
         # Inserir
         if sb:
@@ -626,12 +630,17 @@ def receber():
             fu = item.get('foto_url')
             if fu and str(fu).startswith('http'):
                 fotos_links.append(f"Foto {i}: {fu}")
+            else:
+                # Foto foi tirada mas sem link público (use o app ou verifique Supabase)
+                fotos_links.append(f"Foto {i}: registrada no sistema")
 
         qr_text = qr_url or "QR Code disponível no sistema"
 
         fotos_part = ""
         if fotos_links:
             fotos_part = "\n\nFotos do(s) pacote(s):\n" + "\n".join(fotos_links)
+        else:
+            fotos_part = "\n\nFotos do(s) pacote(s): registradas no sistema (links públicos não disponíveis)"
 
         msg = (
             f"{intro}\n\n"
@@ -639,7 +648,7 @@ def receber():
             f"{fotos_part}\n\n"
             f"Recebido em: {data_receb[:16]}\n\n"
             f"🔐 Escaneie o QR Code abaixo para retirar suas encomendas no setor de entregas:\n{qr_text}\n\n"
-            f"Toque nos links para abrir as fotos e o QR Code."
+            f"Toque nos links para visualizar."
         )
         wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
         registrar_notificacao(ids_inseridos[0], telefone, msg, wa_link)
