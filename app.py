@@ -579,7 +579,8 @@ def receber():
             itens_descricao.append({
                 'unidade': u_label,
                 'nome': unidade.get('nome_residente') or '',
-                'descricao': descricao or 'Encomenda'
+                'descricao': descricao or 'Encomenda',
+                'foto_url': foto_url
             })
             if primeira_unidade is None:
                 primeira_unidade = unidade
@@ -604,7 +605,15 @@ def receber():
         else:
             intro = "Olá!\n\nVocê recebeu as seguintes encomendas no condomínio:"
 
-        lista_itens = "\n".join(f"• {item['descricao']} (Unidade {item['unidade']})" for item in itens_descricao)
+        # Monta lista com fotos
+        lista_parts = []
+        for item in itens_descricao:
+            part = f"• {item['descricao']} (Unidade {item['unidade']})"
+            if item.get('foto_url') and str(item['foto_url']).startswith('http'):
+                part += f"\n  Foto: {item['foto_url']}"
+            lista_parts.append(part)
+        lista_itens = "\n".join(lista_parts)
+
         qr_text = qr_url or "QR Code disponível no sistema"
 
         msg = (
@@ -612,7 +621,7 @@ def receber():
             f"{lista_itens}\n\n"
             f"Recebido em: {data_receb[:16]}\n\n"
             f"🔐 Escaneie o QR Code abaixo para retirar suas encomendas no setor de entregas:\n{qr_text}\n\n"
-            f"Toque no link para abrir a imagem do QR Code."
+            f"Toque nos links das fotos e do QR Code para visualizar."
         )
         wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
         registrar_notificacao(ids_inseridos[0], telefone, msg, wa_link)
@@ -1008,8 +1017,13 @@ def reenviar(encomenda_id):
         f"Você tem uma encomenda pendente no condomínio.\n"
         f"Unidade: {unidade_label}\n"
         f"Descrição: {row['descricao'] or 'Encomenda'}\n"
-        f"Recebido em: {row['data_recebimento'][:16]}\n\n"
-        f"🔐 Escaneie este QR Code para retirar sua encomenda:\n{gerar_qr_code(row['codigo']) or 'QR indisponível'}\n\n"
+        f"Recebido em: {row['data_recebimento'][:16]}\n"
+    )
+    foto = row.get('foto_url') or row.get('foto_path')
+    if foto and str(foto).startswith('http'):
+        msg += f"Foto: {foto}\n"
+    msg += (
+        f"\n🔐 Escaneie este QR Code para retirar sua encomenda:\n{gerar_qr_code(row['codigo']) or 'QR indisponível'}\n\n"
         f"Apresente o QR Code no setor de entregas para retirar."
     )
 
