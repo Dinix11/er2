@@ -321,7 +321,7 @@ async function verificarCodigo() {
             container.innerHTML = data.itens.map(item => `
                 <div class="border-top pt-1 mt-1">
                     <strong>${item.unidade}</strong> — ${item.descricao}
-                    ${item.foto ? `<a href="#" onclick="mostrarFoto('/foto/${item.foto}');return false;" class="ms-1">📷</a>` : ''}
+                    ${item.foto ? `<a href="#" onclick="mostrarFoto('${item.foto.startsWith('http') ? item.foto : '/foto/' + item.foto}');return false;" class="ms-1">📷</a>` : ''}
                 </div>
             `).join('');
         } else {
@@ -335,7 +335,7 @@ async function verificarCodigo() {
             document.getElementById('verifData').textContent = data.data_recebimento;
 
             const fotoEl = document.getElementById('verifFoto');
-            fotoEl.src = `/foto/${data.foto}`;
+            fotoEl.src = data.foto.startsWith('http') ? data.foto : `/foto/${data.foto}`;
             fotoEl.onclick = () => mostrarFoto(fotoEl.src);
         }
 

@@ -67,8 +67,8 @@ def login_required(f):
 
 @app.before_request
 def require_login():
-    # Permite acesso a login, logout e arquivos estáticos sem autenticação
-    if request.endpoint in ('login', 'logout') or (request.endpoint and request.endpoint.startswith('static')):
+    # Permite acesso a login, logout, foto (links públicos) e arquivos estáticos sem autenticação
+    if request.endpoint in ('login', 'logout', 'foto') or (request.endpoint and request.endpoint.startswith('static')):
         return None
     if not session.get('logged_in'):
         return redirect(url_for('login'))
@@ -718,10 +718,19 @@ def receber():
         else:
             fotos_part = "\n\nFotos do(s) pacote(s): sem fotos"
 
-        msg = intro + "\n\n" + descricoes_lista + fotos_part + "\n\n" + \
-              "Recebido em: " + data_receb[:16] + "\n\n" + \
-              "🔐 Escaneie o QR Code abaixo para retirar suas encomendas no setor de entregas:\n" + qr_text + "\n\n" + \
-              "Toque nos links das fotos para visualizá-las e no QR Code para retirar."
+        # Nova mensagem padrão
+        msg = (
+            f"Olá, Boa tarde!\n\n"
+            f"Comunicamos que recebemos uma encomenda 📦 para sua unidade.\n\n"
+            f"{descricoes_lista}\n"
+            f"{fotos_part}\n\n"
+            f"Ela se encontra disponível na sala da Administração das 11h às 12h e de 13h às 20h. Sábados de 10h ás 14h.\n\n"
+            f"Recebido em: {data_receb[:16]}\n\n"
+            f"🔐 Escaneie o QR Code abaixo para retirar suas encomendas no setor de entregas:\n{qr_text}\n\n"
+            f"Toque nos links das fotos para visualizá-las e no QR Code para retirar.\n\n"
+            f"Atenciosamente,\n\n"
+            f"Administração"
+        )
         wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
         registrar_notificacao(ids_inseridos[0], telefone, msg, wa_link)
 
@@ -923,8 +932,11 @@ def adicionar_unidade():
             }).execute()
             flash('Unidade cadastrada com sucesso!', 'success')
         except Exception as e:
-            print("Erro Supabase add unidade:", e)
-            flash('Erro no banco nuvem ao cadastrar a unidade.', 'danger')
+            print("Erro Supabase add unidade:", str(e)[:500])
+            if "permission" in str(e).lower() or "policy" in str(e).lower() or "403" in str(e):
+                flash('Erro de permissão no Supabase (verifique RLS e políticas).', 'danger')
+            else:
+                flash('Erro no banco nuvem ao cadastrar a unidade.', 'danger')
     else:
         conn = get_db()
         try:
@@ -1213,13 +1225,6 @@ def reenviar(encomenda_id):
     unidade_label = f"{u.get('bloco') or ''} {u.get('numero')}".strip()
     nome = u.get('nome_residente') or row.get('nome_residente') or ''
 
-    msg = (
-        f"Olá {nome}!\n\n"
-        f"Você tem uma encomenda pendente no condomínio.\n"
-        f"Unidade: {unidade_label}\n"
-        f"Descrição: {row.get('descricao') or 'Encomenda'}\n"
-        f"Recebido em: {str(row.get('data_recebimento', ''))[:16]}\n"
-    )
     foto = row.get('foto_url') or row.get('foto_path')
     if not foto and isinstance(row.get('unidades'), dict):
         foto = row.get('unidades').get('foto_url') or row.get('unidades').get('foto_path')  # unlikely
@@ -1230,11 +1235,25 @@ def reenviar(encomenda_id):
                 foto = base + (foto if foto.startswith('/') else '/' + foto)
             except:
                 pass
-        msg += f"Foto: {foto}\n"
+        foto_text = f"Foto: {foto}\n"
+    else:
+        foto_text = ""
+
     qr = gerar_qr_code(row.get('codigo'))
-    msg += (
-        f"\n🔐 Escaneie este QR Code para retirar sua encomenda:\n{qr or 'QR indisponível'}\n\n"
-        f"Apresente o QR Code no setor de entregas para retirar."
+
+    # Nova mensagem padrão
+    msg = (
+        f"Olá, Boa tarde!\n\n"
+        f"Comunicamos que recebemos uma encomenda 📦 para sua unidade.\n\n"
+        f"Descrição: {row.get('descricao') or 'Encomenda'}\n"
+        f"Unidade: {unidade_label}\n"
+        f"{foto_text}\n"
+        f"Ela se encontra disponível na sala da Administração das 11h às 12h e de 13h às 20h. Sábados de 10h ás 14h.\n\n"
+        f"Recebido em: {str(row.get('data_recebimento', ''))[:16]}\n\n"
+        f"🔐 Escaneie este QR Code para retirar sua encomenda:\n{qr or 'QR indisponível'}\n\n"
+        f"Toque no link da foto e no QR Code para retirar.\n\n"
+        f"Atenciosamente,\n\n"
+        f"Administração"
     )
 
     wa_link = f"https://wa.me/{telefone}?text={quote(msg)}"
