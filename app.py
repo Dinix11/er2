@@ -1335,9 +1335,6 @@ def historico():
     if sb:
         try:
             query = sb.table("encomendas").select("*, unidades!inner(numero, nome_residente, bloco)")
-            if filtro:
-                # Supabase doesn't do easy OR ilike on joined easily, do client-side filter or broad
-                query = query.or_(f"descricao.ilike.%{filtro}%,unidades.numero.ilike.%{filtro}%,unidades.nome_residente.ilike.%{filtro}%")
             if status == 'pendente':
                 query = query.eq("status", "pendente")
             elif status == 'entregue':
@@ -1362,6 +1359,16 @@ def historico():
                         e["foto_path"] = s
                 else:
                     e["foto_path"] = None
+
+            # Filtro client-side (Supabase nao faz OR ilike facil em joins)
+            if filtro:
+                f = filtro.lower()
+                encomendas = [
+                    e for e in encomendas
+                    if f in (e.get("descricao") or '').lower()
+                    or f in (e.get("numero") or '').lower()
+                    or f in (e.get("nome_residente") or '').lower()
+                ]
         except Exception as ex:
             print("Erro Supabase no histórico:", ex)
             encomendas = []
