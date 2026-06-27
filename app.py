@@ -433,7 +433,7 @@ def upload_foto_supabase(file, filename: str) -> str | None:
 
         file_options = {
             "contentType": getattr(file, "content_type", None) or "image/jpeg",
-            "upsert": True,
+            "upsert": "true",  # string, não bool — headers HTTP devem ser str/bytes
         }
 
         print(f"[UPLOAD] Enviando path={path} size={len(data)} type={file_options['contentType']}")
