@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block title %}Gerenciar Unidades{% endblock %}
 
 {% block content %}
@@ -7,7 +6,7 @@
     <h4><i class="bi bi-people me-2"></i>Unidades Cadastradas</h4>
     <div>
         <a href="/unidades/importar" class="btn btn-success me-2">
-            <i class="bi bi-upload me-1"></i> Importar do WhatsApp / CSV
+            <i class="bi bi-upload me-1"></i> Importar CSV / WhatsApp
         </a>
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAdicionar">
             <i class="bi bi-plus-lg"></i> Nova Unidade
@@ -20,22 +19,54 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th>Unidade</th>
-                    <th>Nome do Residente</th>
-                    <th>Telefone</th>
-                    <th class="text-center">Pendentes</th>
-                    <th class="text-end">Ações</th>
+                    <th style="width:110px">Unidade</th>
+                    <th>Moradores</th>
+                    <th class="text-center" style="width:110px">Pendentes</th>
+                    <th class="text-end" style="width:120px">Ações</th>
                 </tr>
             </thead>
             <tbody>
                 {% for u in unidades %}
                 <tr>
+                    <td class="fw-semibold">{{ u.bloco or '' }} {{ u.numero }}</td>
                     <td>
-                        <strong>{{ u.bloco or '' }} {{ u.numero }}</strong>
-                    </td>
-                    <td>{{ u.nome_residente or '<span class="text-muted">Não informado</span>' | safe }}</td>
-                    <td>
-                        <code>{{ u.telefone }}</code>
+                        {# Lista de moradores inline #}
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            {% set moradores = moradores_map.get(u.id, []) %}
+                            {% for m in moradores %}
+                            <span class="badge {% if m.principal %}bg-primary{% else %}bg-secondary{% endif %} d-flex align-items-center gap-1 py-1 px-2 fs-6 fw-normal">
+                                <i class="bi bi-person-fill"></i>
+                                {{ m.nome }}
+                                <span class="text-white-50 small ms-1">{{ m.telefone[-8:] }}</span>
+                                {% if not m.principal %}
+                                <form action="/moradores/principal/{{ m.id }}" method="post" class="d-inline ms-1"
+                                      title="Tornar principal">
+                                    <input type="hidden" name="unidade_id" value="{{ u.id }}">
+                                    <button type="submit" class="btn btn-link p-0 text-white" style="line-height:1" title="Tornar principal">
+                                        <i class="bi bi-star" style="font-size:.75rem"></i>
+                                    </button>
+                                </form>
+                                {% else %}
+                                <i class="bi bi-star-fill text-warning ms-1" style="font-size:.7rem" title="Principal"></i>
+                                {% endif %}
+                                <form action="/moradores/excluir/{{ m.id }}" method="post" class="d-inline"
+                                      onsubmit="return confirm('Remover {{ m.nome }}?')">
+                                    <button type="submit" class="btn btn-link p-0 text-white-50" style="line-height:1">
+                                        <i class="bi bi-x" style="font-size:.9rem"></i>
+                                    </button>
+                                </form>
+                            </span>
+                            {% else %}
+                            <span class="text-muted small">Sem moradores</span>
+                            {% endfor %}
+
+                            {# Botão inline para adicionar morador #}
+                            <button class="btn btn-outline-secondary btn-sm"
+                                    onclick="abrirAddMorador({{ u.id }}, '{{ u.bloco or '' }} {{ u.numero }}')"
+                                    title="Adicionar morador">
+                                <i class="bi bi-person-plus"></i>
+                            </button>
+                        </div>
                     </td>
                     <td class="text-center">
                         {% set q = pend_map.get(u.id, 0) %}
@@ -46,49 +77,53 @@
                         {% endif %}
                     </td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary" 
-                                data-bs-toggle="modal" 
+                        <button class="btn btn-sm btn-outline-primary"
+                                data-bs-toggle="modal"
                                 data-bs-target="#modalEditar{{ u.id }}">
-                            Editar
+                            <i class="bi bi-pencil"></i>
                         </button>
                         <form action="/unidades/excluir/{{ u.id }}" method="post" class="d-inline"
-                              onsubmit="return confirm('Excluir esta unidade?');">
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                              onsubmit="return confirm('Excluir esta unidade e todos os moradores?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </form>
                     </td>
                 </tr>
 
-                <!-- Modal Editar -->
+                {# Modal Editar Unidade #}
                 <div class="modal fade" id="modalEditar{{ u.id }}" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <form action="/unidades/editar/{{ u.id }}" method="post">
                                 <div class="modal-header">
-                                    <h5 class="modal-title">Editar Unidade {{ u.numero }}</h5>
+                                    <h5 class="modal-title">Editar Unidade {{ u.bloco or '' }} {{ u.numero }}</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
                                 <div class="modal-body">
-                                    <div class="mb-3">
-                                        <label class="form-label">Número / Apartamento</label>
-                                        <input type="text" name="numero" class="form-control" value="{{ u.numero }}" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Telefone (WhatsApp)</label>
-                                        <input type="text" name="telefone" class="form-control" value="{{ u.telefone }}" required>
-                                        <div class="form-text">Ex: 5511987654321 (com código do país)</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Nome do Residente</label>
-                                        <input type="text" name="nome_residente" class="form-control" value="{{ u.nome_residente or '' }}">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Bloco</label>
-                                        <input type="text" name="bloco" class="form-control" value="{{ u.bloco or '' }}">
+                                    <div class="row g-3">
+                                        <div class="col-6">
+                                            <label class="form-label">Número / Apartamento *</label>
+                                            <input type="text" name="numero" class="form-control" value="{{ u.numero }}" required>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label">Bloco</label>
+                                            <input type="text" name="bloco" class="form-control" value="{{ u.bloco or '' }}">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Telefone principal (legado)</label>
+                                            <input type="text" name="telefone" class="form-control" value="{{ u.telefone }}" required>
+                                            <div class="form-text">Use os moradores abaixo para múltiplos contatos.</div>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Nome do Residente (legado)</label>
+                                            <input type="text" name="nome_residente" class="form-control" value="{{ u.nome_residente or '' }}">
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                                    <button type="submit" class="btn btn-primary">Salvar</button>
                                 </div>
                             </form>
                         </div>
@@ -100,7 +135,7 @@
     </div>
 </div>
 
-<!-- Modal Adicionar -->
+{# Modal Adicionar Unidade #}
 <div class="modal fade" id="modalAdicionar" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -110,29 +145,65 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Número da Unidade / Apartamento *</label>
-                        <input type="text" name="numero" class="form-control" placeholder="101, 15B, A-203..." required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Telefone WhatsApp *</label>
-                        <input type="text" name="telefone" class="form-control" placeholder="5511987654321" required>
-                        <div class="form-text">Inclua o DDD e código do país (55 para Brasil). Exemplo: 5511987654321</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Nome do Residente</label>
-                            <input type="text" name="nome_residente" class="form-control">
+                    <div class="row g-3">
+                        <div class="col-8">
+                            <label class="form-label">Número / Apartamento *</label>
+                            <input type="text" name="numero" class="form-control" placeholder="101, 15B..." required>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-4">
                             <label class="form-label">Bloco</label>
-                            <input type="text" name="bloco" class="form-control" placeholder="Bloco A">
+                            <input type="text" name="bloco" class="form-control" placeholder="A">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Telefone WhatsApp do 1º morador *</label>
+                            <input type="text" name="telefone" class="form-control" placeholder="5584987654321" required>
+                            <div class="form-text">Com código do país. Ex: 5584987654321</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Nome do 1º morador</label>
+                            <input type="text" name="nome_residente" class="form-control" placeholder="João Silva">
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Cadastrar Unidade</button>
+                    <button type="submit" class="btn btn-primary">Cadastrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# Modal Adicionar Morador (compartilhado, preenchido por JS) #}
+<div class="modal fade" id="modalAddMorador" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/moradores/adicionar" method="post">
+                <input type="hidden" name="unidade_id" id="addMoradorUnidadeId">
+                <div class="modal-header">
+                    <h5 class="modal-title">Adicionar Morador — <span id="addMoradorUnidadeLabel"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome *</label>
+                        <input type="text" name="nome" class="form-control" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Telefone WhatsApp *</label>
+                        <input type="text" name="telefone" class="form-control" placeholder="5584987654321" required>
+                        <div class="form-text">Com código do país (55 + DDD + número).</div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="principal" id="checkPrincipal">
+                        <label class="form-check-label" for="checkPrincipal">
+                            Definir como morador principal (receberá o aviso por padrão)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
                 </div>
             </form>
         </div>
@@ -140,7 +211,17 @@
 </div>
 
 <p class="text-muted mt-3 small">
-    O telefone cadastrado será usado para enviar o aviso com o código de retirada via WhatsApp. 
-    <strong>O código nunca é exibido para a administração.</strong>
+    <i class="bi bi-star-fill text-warning me-1"></i> Morador principal recebe o aviso por padrão.
+    O código de retirada nunca é exibido para a administração.
 </p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function abrirAddMorador(unidadeId, unidadeLabel) {
+    document.getElementById('addMoradorUnidadeId').value = unidadeId;
+    document.getElementById('addMoradorUnidadeLabel').textContent = unidadeLabel.trim();
+    new bootstrap.Modal(document.getElementById('modalAddMorador')).show();
+}
+</script>
 {% endblock %}

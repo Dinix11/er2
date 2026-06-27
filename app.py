@@ -151,6 +151,32 @@ def init_db():
         )
     ''')
 
+    # Tabela de moradores (múltiplos por unidade)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS moradores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            unidade_id INTEGER NOT NULL,
+            nome TEXT NOT NULL,
+            telefone TEXT NOT NULL,
+            principal INTEGER DEFAULT 0,
+            criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (unidade_id) REFERENCES unidades (id) ON DELETE CASCADE
+        )
+    ''')
+
+    # Migração: popula moradores a partir de unidades existentes (roda uma vez)
+    c.execute("SELECT COUNT(*) FROM moradores")
+    if c.fetchone()[0] == 0:
+        c.execute("SELECT COUNT(*) FROM unidades")
+        if c.fetchone()[0] > 0:
+            c.execute('''
+                INSERT INTO moradores (unidade_id, nome, telefone, principal)
+                SELECT id, COALESCE(nome_residente, 'Morador'), telefone, 1
+                FROM unidades
+                WHERE telefone IS NOT NULL AND telefone != ""
+            ''')
+            print("Migração: moradores populados a partir de unidades existentes.")
+
     conn.commit()
 
     # Migração: remover UNIQUE do campo codigo (para suportar lotes com código único)
@@ -686,8 +712,34 @@ def receber():
     # Notificação WhatsApp
     wa_link = None
     if primeira_unidade:
-        tel = primeira_unidade.get('telefone') if isinstance(primeira_unidade, dict) else primeira_unidade['telefone']
-        telefone = limpar_telefone(tel)
+        # Se um morador específico foi escolhido, usar o telefone dele
+        morador_id = request.form.get('morador_id', '').strip()
+        morador_nome = None
+        if morador_id:
+            sb2 = get_supabase()
+            if sb2:
+                try:
+                    mr = sb2.table("moradores").select("nome, telefone").eq("id", int(morador_id)).execute()
+                    if mr.data:
+                        morador_nome = mr.data[0].get('nome')
+                        tel_morador  = mr.data[0].get('telefone')
+                        telefone = limpar_telefone(tel_morador)
+                except Exception as e:
+                    print("Erro Supabase morador telefone:", e)
+                    morador_id = None
+            else:
+                conn = get_db()
+                mr = conn.execute("SELECT nome, telefone FROM moradores WHERE id=?", (int(morador_id),)).fetchone()
+                conn.close()
+                if mr:
+                    morador_nome = mr['nome']
+                    telefone = limpar_telefone(mr['telefone'])
+                else:
+                    morador_id = None
+
+        if not morador_id:
+            tel = primeira_unidade.get('telefone') if isinstance(primeira_unidade, dict) else primeira_unidade['telefone']
+            telefone = limpar_telefone(tel)
         unidades_unicas = set(item['unidade'] for item in itens_descricao)
         if len(unidades_unicas) == 1:
             unidade_label = list(unidades_unicas)[0]
@@ -876,6 +928,107 @@ def verificar_codigo():
     })
 
 
+@app.route('/api/moradores/<int:unidade_id>')
+def api_moradores(unidade_id):
+    """Retorna moradores de uma unidade (SQLite + Supabase)"""
+    sb = get_supabase()
+    if sb:
+        try:
+            res = sb.table("moradores").select("*").eq("unidade_id", unidade_id).order("principal", desc=True).order("nome").execute()
+            return jsonify(res.data or [])
+        except Exception as e:
+            print("Erro Supabase api_moradores:", e)
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM moradores WHERE unidade_id = ? ORDER BY principal DESC, nome",
+        (unidade_id,)
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/moradores/adicionar', methods=['POST'])
+def adicionar_morador():
+    unidade_id = request.form.get('unidade_id', '').strip()
+    nome       = request.form.get('nome', '').strip()
+    telefone   = limpar_telefone(request.form.get('telefone', '').strip())
+    principal  = 1 if request.form.get('principal') else 0
+
+    if not unidade_id or not nome or not telefone:
+        flash('Nome e telefone são obrigatórios.', 'danger')
+        return redirect(url_for('unidades'))
+
+    sb = get_supabase()
+    if sb:
+        try:
+            if principal:
+                sb.table("moradores").update({"principal": 0}).eq("unidade_id", int(unidade_id)).execute()
+            sb.table("moradores").insert({
+                "unidade_id": int(unidade_id), "nome": nome,
+                "telefone": telefone, "principal": principal
+            }).execute()
+            flash('Morador cadastrado!', 'success')
+        except Exception as e:
+            print("Erro Supabase add morador:", e)
+            flash('Erro ao cadastrar morador.', 'danger')
+    else:
+        conn = get_db()
+        try:
+            if principal:
+                conn.execute("UPDATE moradores SET principal=0 WHERE unidade_id=?", (unidade_id,))
+            conn.execute(
+                "INSERT INTO moradores (unidade_id, nome, telefone, principal) VALUES (?,?,?,?)",
+                (unidade_id, nome, telefone, principal)
+            )
+            conn.commit()
+            flash('Morador cadastrado!', 'success')
+        except Exception as e:
+            print("Erro SQLite add morador:", e)
+            flash('Erro ao cadastrar morador.', 'danger')
+        finally:
+            conn.close()
+    return redirect(url_for('unidades'))
+
+
+@app.route('/moradores/excluir/<int:morador_id>', methods=['POST'])
+def excluir_morador(morador_id):
+    sb = get_supabase()
+    if sb:
+        try:
+            sb.table("moradores").delete().eq("id", morador_id).execute()
+            flash('Morador removido.', 'success')
+        except Exception as e:
+            print("Erro Supabase excluir morador:", e)
+            flash('Erro ao remover morador.', 'danger')
+    else:
+        conn = get_db()
+        conn.execute("DELETE FROM moradores WHERE id=?", (morador_id,))
+        conn.commit()
+        conn.close()
+        flash('Morador removido.', 'success')
+    return redirect(url_for('unidades'))
+
+
+@app.route('/moradores/principal/<int:morador_id>', methods=['POST'])
+def definir_principal(morador_id):
+    unidade_id = request.form.get('unidade_id', '').strip()
+    sb = get_supabase()
+    if sb:
+        try:
+            sb.table("moradores").update({"principal": 0}).eq("unidade_id", int(unidade_id)).execute()
+            sb.table("moradores").update({"principal": 1}).eq("id", morador_id).execute()
+        except Exception as e:
+            print("Erro Supabase principal morador:", e)
+    else:
+        conn = get_db()
+        conn.execute("UPDATE moradores SET principal=0 WHERE unidade_id=?", (unidade_id,))
+        conn.execute("UPDATE moradores SET principal=1 WHERE id=?", (morador_id,))
+        conn.commit()
+        conn.close()
+    flash('Morador principal atualizado.', 'success')
+    return redirect(url_for('unidades'))
+
+
 @app.route('/unidades')
 def unidades():
     sb = get_supabase()
@@ -905,7 +1058,24 @@ def unidades():
         pend_counts = {p['unidade_id']: p['qtd'] for p in pendentes}
         conn.close()
 
-    return render_template('unidades.html', unidades=lista, pend_map=pend_counts)
+    # Carrega moradores agrupados por unidade_id
+    moradores_map = {}
+    sb2 = get_supabase()
+    if sb2:
+        try:
+            mr = sb2.table("moradores").select("*").order("principal", desc=True).order("nome").execute()
+            for m in (mr.data or []):
+                moradores_map.setdefault(m['unidade_id'], []).append(m)
+        except Exception as e:
+            print("Erro Supabase moradores:", e)
+    else:
+        conn2 = get_db()
+        rows = conn2.execute("SELECT * FROM moradores ORDER BY principal DESC, nome").fetchall()
+        conn2.close()
+        for m in rows:
+            m = dict(m)
+            moradores_map.setdefault(m['unidade_id'], []).append(m)
+    return render_template('unidades.html', unidades=lista, pend_map=pend_counts, moradores_map=moradores_map)
 
 
 @app.route('/unidades/adicionar', methods=['POST'])
