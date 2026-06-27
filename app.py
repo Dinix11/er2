@@ -424,14 +424,19 @@ def upload_foto_supabase(file, filename: str) -> str | None:
     try:
         bucket = "fotos"
         path = f"encomendas/{datetime.now().strftime('%Y%m%d')}/{filename}"
-        # Lê o conteúdo
-        content = file.read()
+        # Lê o conteúdo e normaliza para bytes puro (suporte a BytesIO e wrappers)
+        file.seek(0)
+        raw = file.read()
+        if isinstance(raw, memoryview):
+            raw = bytes(raw)
+        elif hasattr(raw, "getvalue"):
+            raw = raw.getvalue()
         # Upload com opções corretas para Supabase Python client
         file_options = {
             "contentType": file.content_type or "image/jpeg",
-            "upsert": True
+            "upsert": True,
         }
-        sb.storage.from_(bucket).upload(path, content, file_options)
+        sb.storage.from_(bucket).upload(path, raw, file_options)
         # URL pública (assumindo bucket público)
         public_url = sb.storage.from_(bucket).get_public_url(path)
         return public_url
