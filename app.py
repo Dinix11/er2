@@ -424,24 +424,27 @@ def upload_foto_supabase(file, filename: str) -> str | None:
     try:
         bucket = "fotos"
         path = f"encomendas/{datetime.now().strftime('%Y%m%d')}/{filename}"
-        # Lê o conteúdo e normaliza para bytes puro (suporte a BytesIO e wrappers)
+
         file.seek(0)
-        raw = file.read()
-        if isinstance(raw, memoryview):
-            raw = bytes(raw)
-        elif hasattr(raw, "getvalue"):
-            raw = raw.getvalue()
-        # Upload com opções corretas para Supabase Python client
+        data = file.read()
+        if not data:
+            print(f"[UPLOAD] Arquivo vazio: {filename}")
+            return None
+
         file_options = {
-            "contentType": file.content_type or "image/jpeg",
+            "contentType": getattr(file, "content_type", None) or "image/jpeg",
             "upsert": True,
         }
-        sb.storage.from_(bucket).upload(path, raw, file_options)
-        # URL pública (assumindo bucket público)
+
+        print(f"[UPLOAD] Enviando path={path} size={len(data)} type={file_options['contentType']}")
+        sb.storage.from_(bucket).upload(path, data, file_options)
         public_url = sb.storage.from_(bucket).get_public_url(path)
+        print(f"[UPLOAD] OK url={public_url}")
         return public_url
     except Exception as e:
-        print("Erro upload Supabase foto:", e)
+        print("[UPLOAD] ERRO:", repr(e))
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -665,11 +668,7 @@ def receber():
 
         if sb:
             # Modo nuvem: upload para Supabase PRIMEIRO — sem fallback local
-            foto.seek(0)
-            raw = foto.read()
-            print(f"[ENCOMENDA] i={i} sb=True filename={filename} content_type={getattr(foto, 'content_type', None)} raw_len={len(raw) if raw else 0} raw_type={type(raw).__name__}")
             public_url = upload_foto_supabase(foto, safe_name)
-            print(f"[ENCOMENDA] i={i} upload_retornou={public_url!r}")
             if not public_url:
                 flash(f'Erro ao enviar a foto da encomenda #{i+1} para o servidor. Verifique se o bucket "fotos" existe no Supabase Storage e tente novamente.', 'danger')
                 return redirect(url_for('index'))
