@@ -1334,7 +1334,7 @@ def historico():
 
     if sb:
         try:
-            query = sb.table("encomendas").select("*, unidades!inner(numero, nome_residente, bloco)")
+            query = sb.table("encomendas").select("*, unidades!inner(numero, nome_residente, bloco, telefone)")
             if status == 'pendente':
                 query = query.eq("status", "pendente")
             elif status == 'entregue':
@@ -1348,6 +1348,7 @@ def historico():
                 e["numero"] = u.get("numero")
                 e["nome_residente"] = u.get("nome_residente")
                 e["bloco"] = u.get("bloco")
+                e["telefone"] = u.get("telefone")
                 foto_raw = e.get("foto_url") or e.get("foto_path")
                 if foto_raw:
                     s = str(foto_raw)
@@ -1368,6 +1369,7 @@ def historico():
                     if f in (e.get("descricao") or '').lower()
                     or f in (e.get("numero") or '').lower()
                     or f in (e.get("nome_residente") or '').lower()
+                    or f in (e.get("telefone") or '').lower()
                 ]
         except Exception as ex:
             print("Erro Supabase no histórico:", ex)
