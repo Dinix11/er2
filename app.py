@@ -666,7 +666,10 @@ def receber():
         if sb:
             # Modo nuvem: upload para Supabase PRIMEIRO — sem fallback local
             foto.seek(0)
+            raw = foto.read()
+            print(f"[ENCOMENDA] i={i} sb=True filename={filename} content_type={getattr(foto, 'content_type', None)} raw_len={len(raw) if raw else 0} raw_type={type(raw).__name__}")
             public_url = upload_foto_supabase(foto, safe_name)
+            print(f"[ENCOMENDA] i={i} upload_retornou={public_url!r}")
             if not public_url:
                 flash(f'Erro ao enviar a foto da encomenda #{i+1} para o servidor. Verifique se o bucket "fotos" existe no Supabase Storage e tente novamente.', 'danger')
                 return redirect(url_for('index'))
