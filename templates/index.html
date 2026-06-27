@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block title %}Painel de Encomendas{% endblock %}
 
 {% block content %}
@@ -34,34 +33,76 @@
 
 <div class="row g-4">
 
-    {# ==================== Coluna Esquerda: Registrar + Entregar ==================== #}
+    {# ==================== Coluna Esquerda ==================== #}
     <div class="col-lg-7">
 
-        {# --- Registrar Encomendas em Lote --- #}
-        <div class="card mb-4">
+        {# --- PASSO 1: Selecionar Unidade --- #}
+        <div class="card mb-4" id="card-selecionar-unidade">
+            <div class="card-header">
+                <i class="bi bi-search me-2"></i><strong>Nova Entrada de Encomenda</strong>
+            </div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end">
+                    <div class="col-3">
+                        <label class="form-label">Bloco</label>
+                        <input type="text" id="busca-bloco"
+                               class="form-control form-control-lg text-center text-uppercase"
+                               placeholder="A" list="blocos-list"
+                               autocomplete="off">
+                        <datalist id="blocos-list">
+                            {% set blocos = unidades | map(attribute='bloco') | select('defined') | unique | list %}
+                            {% for b in blocos if b %}
+                            <option value="{{ b }}">
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Unidade / Apartamento</label>
+                        <select id="busca-unidade" class="form-select form-select-lg">
+                            <option value="">Todas as unidades...</option>
+                            {% for u in unidades %}
+                            <option value="{{ u.id }}"
+                                    data-bloco="{{ u.bloco or '' }}"
+                                    data-numero="{{ u.numero }}"
+                                    data-nome="{{ u.nome_residente or '' }}">
+                                {{ u.bloco or '' }} {{ u.numero }}{% if u.nome_residente %} — {{ u.nome_residente }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-3">
+                        <button type="button" class="btn btn-primary btn-lg w-100" onclick="confirmarUnidade()">
+                            <i class="bi bi-arrow-right-circle me-1"></i> Selecionar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# --- PASSO 2: Adicionar encomendas (oculto até selecionar unidade) --- #}
+        <div class="card mb-4 d-none" id="card-encomendas">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-box-arrow-in-down me-2"></i><strong>Registrar Encomendas</strong></span>
-                <button type="button" class="btn btn-sm btn-outline-primary" onclick="adicionarItem()">
-                    <i class="bi bi-plus-lg"></i> Adicionar item
+                <div>
+                    <i class="bi bi-box-arrow-in-down me-2"></i>
+                    <strong>Encomendas para:</strong>
+                    <span id="label-unidade-selecionada" class="badge bg-primary ms-1 fs-6"></span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="trocarUnidade()">
+                    <i class="bi bi-pencil me-1"></i> Trocar
                 </button>
             </div>
             <div class="card-body">
                 <form method="post" action="/receber" enctype="multipart/form-data" id="formRegistrar">
+                    <input type="hidden" name="unidade_id_fixo" id="unidade-id-fixo">
+
                     <div id="itens-container"></div>
 
-                    <datalist id="blocos-list">
-                        {% set blocos = unidades | map(attribute='bloco') | select('defined') | unique | list %}
-                        {% for b in blocos if b %}
-                        <option value="{{ b }}">
-                        {% endfor %}
-                    </datalist>
-
                     <div class="d-flex gap-2 mt-3">
-                        <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
-                            <i class="bi bi-whatsapp me-2"></i>Registrar e Notificar via WhatsApp
+                        <button type="button" class="btn btn-outline-primary" onclick="adicionarItem()">
+                            <i class="bi bi-plus-lg me-1"></i> Mais uma encomenda
                         </button>
-                        <button type="button" class="btn btn-outline-secondary" onclick="limparItens()" title="Limpar tudo">
-                            <i class="bi bi-trash"></i>
+                        <button type="submit" class="btn btn-success btn-lg flex-grow-1">
+                            <i class="bi bi-whatsapp me-2"></i> Finalizar e Notificar
                         </button>
                     </div>
                 </form>
@@ -90,7 +131,6 @@
                     </button>
                 </form>
 
-                {# Scanner QR Code #}
                 <div id="qr-scanner-container" class="mt-3 d-none">
                     <div class="ratio ratio-4x3 bg-black rounded overflow-hidden mb-2">
                         <video id="qr-video" playsinline muted></video>
@@ -122,12 +162,12 @@
                         {% if e.foto_path %}
                         <img src="/foto/{{ e.foto_path }}"
                              class="foto-thumb"
-                             style="width:70px;height:70px;flex-shrink:0;"
+                             style="width:68px;height:68px;flex-shrink:0;"
                              onclick="mostrarFoto('/foto/{{ e.foto_path }}')"
                              alt="Foto">
                         {% else %}
                         <div class="d-flex align-items-center justify-content-center bg-light rounded border"
-                             style="width:70px;height:70px;flex-shrink:0;">
+                             style="width:68px;height:68px;flex-shrink:0;">
                             <i class="bi bi-image text-muted fs-4"></i>
                         </div>
                         {% endif %}
@@ -173,32 +213,22 @@
 
 </div>
 
-{# ==================== Template de item de lote ==================== #}
+{# ==================== Template de item (sem campo de unidade) ==================== #}
 <template id="template-item">
-    <div class="row g-3 item-lote mb-3 border rounded p-3 bg-light position-relative">
+    <div class="item-encomenda border rounded p-3 mb-3 bg-light position-relative">
         <button type="button" class="btn-close position-absolute top-0 end-0 m-2"
                 onclick="removerItem(this)" aria-label="Remover"></button>
-        <div class="col-md-2">
-            <label class="form-label">Bloco</label>
-            <input type="text" class="form-control form-control-lg bloco-input"
-                   placeholder="A" list="blocos-list">
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Unidade / Apartamento <span class="text-danger">*</span></label>
-            <select name="unidade_id" class="form-select form-select-lg unidade-select" required>
-                <option value="">Selecione o bloco primeiro...</option>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Descrição / Conteúdo</label>
-            <input type="text" name="descricao" class="form-control form-control-lg"
-                   placeholder="Caixa Amazon, Correios, Magazine...">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Foto da encomenda <span class="text-danger">*</span></label>
-            <input type="file" name="foto" class="form-control"
-                   accept=".jpg,.jpeg,.png,.webp" required>
-            <div class="form-text small">Obrigatória</div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Descrição / Conteúdo</label>
+                <input type="text" name="descricao" class="form-control form-control-lg"
+                       placeholder="Caixa Amazon, Correios, Magazine...">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Foto da encomenda <span class="text-danger">*</span></label>
+                <input type="file" name="foto" class="form-control form-control-lg"
+                       accept=".jpg,.jpeg,.png,.webp" required>
+            </div>
         </div>
     </div>
 </template>
@@ -208,89 +238,103 @@
 
 {% block scripts %}
 <script>
-/* ===== Dados de unidades injetados pelo Flask ===== */
+/* ===== Dados injetados pelo Flask ===== */
 const todasUnidades = {{ unidades | tojson }};
 
-/* ===== Filtro por bloco ===== */
-function filtrarUnidadesPorBloco(input) {
-    const bloco = input.value.trim().toUpperCase();
-    const row = input.closest('.item-lote');
-    const select = row.querySelector('.unidade-select');
+/* ===== Passo 1 — Filtro de bloco no select ===== */
+const buscaBloco   = document.getElementById('busca-bloco');
+const buscaUnidade = document.getElementById('busca-unidade');
 
-    const filtradas = bloco
-        ? todasUnidades.filter(u => (u.bloco || '').toUpperCase() === bloco)
-        : todasUnidades;
+buscaBloco.addEventListener('input', function () {
+    const bloco = this.value.trim().toUpperCase();
+    const opts  = buscaUnidade.querySelectorAll('option');
+    opts.forEach(opt => {
+        if (!opt.value) return; // placeholder
+        const b = (opt.dataset.bloco || '').toUpperCase();
+        opt.hidden = bloco ? b !== bloco : false;
+    });
+    buscaUnidade.value = '';
+});
 
-    select.innerHTML = '';
-
-    if (!filtradas.length) {
-        select.innerHTML = '<option value="">Nenhuma unidade neste bloco</option>';
+/* ===== Passo 1 — Confirmar unidade e mostrar passo 2 ===== */
+function confirmarUnidade() {
+    const sel = buscaUnidade;
+    if (!sel.value) {
+        sel.classList.add('is-invalid');
+        sel.focus();
         return;
     }
+    sel.classList.remove('is-invalid');
 
-    const placeholder = new Option('Selecione a unidade...', '');
-    select.appendChild(placeholder);
+    const opt     = sel.options[sel.selectedIndex];
+    const label   = opt.text.trim();
+    const unidadeId = sel.value;
 
-    filtradas.forEach(u => {
-        const label = (u.bloco ? u.bloco + ' ' : '') + u.numero
-                    + (u.nome_residente ? ' — ' + u.nome_residente : '');
-        select.appendChild(new Option(label, u.id));
-    });
+    // Preenche campo oculto em todos os futuros inputs de unidade_id
+    document.getElementById('unidade-id-fixo').value = unidadeId;
+    document.getElementById('label-unidade-selecionada').textContent = label;
+
+    // Troca cards
+    document.getElementById('card-selecionar-unidade').classList.add('d-none');
+    document.getElementById('card-encomendas').classList.remove('d-none');
+
+    // Garante pelo menos 1 item
+    const container = document.getElementById('itens-container');
+    if (container.children.length === 0) adicionarItem();
 }
 
-/* ===== Lote de Encomendas ===== */
+function trocarUnidade() {
+    document.getElementById('card-encomendas').classList.add('d-none');
+    document.getElementById('card-selecionar-unidade').classList.remove('d-none');
+    document.getElementById('itens-container').innerHTML = '';
+}
+
+/* ===== Passo 2 — Gerenciar itens de encomenda ===== */
 function adicionarItem() {
     const container = document.getElementById('itens-container');
     const clone = document.getElementById('template-item').content.cloneNode(true);
 
-    const blocoInput = clone.querySelector('.bloco-input');
-    blocoInput.addEventListener('input', function () {
-        filtrarUnidadesPorBloco(this);
-    });
+    // Número do item no cabeçalho
+    const n = container.children.length + 1;
+    const div = clone.querySelector('.item-encomenda');
+    const badge = document.createElement('small');
+    badge.className = 'text-muted me-4';
+    badge.textContent = `Encomenda #${n}`;
+    div.querySelector('.btn-close').insertAdjacentElement('beforebegin', badge);
 
-    // Popula o select com todas as unidades já ao adicionar
+    // Injeta unidade_id como hidden em cada item
+    const hiddenUid = document.createElement('input');
+    hiddenUid.type  = 'hidden';
+    hiddenUid.name  = 'unidade_id';
+    hiddenUid.value = document.getElementById('unidade-id-fixo').value;
+    div.appendChild(hiddenUid);
+
     container.appendChild(clone);
-    const lastSelect = container.lastElementChild.querySelector('.unidade-select');
-    if (lastSelect && todasUnidades.length) {
-        const ph = new Option('Selecione a unidade...', '');
-        lastSelect.innerHTML = '';
-        lastSelect.appendChild(ph);
-        todasUnidades.forEach(u => {
-            const label = (u.bloco ? u.bloco + ' ' : '') + u.numero
-                        + (u.nome_residente ? ' — ' + u.nome_residente : '');
-            lastSelect.appendChild(new Option(label, u.id));
-        });
-    }
 }
 
 function removerItem(btn) {
-    const itens = document.querySelectorAll('.item-lote');
+    const itens = document.querySelectorAll('.item-encomenda');
     if (itens.length > 1) {
-        btn.closest('.item-lote').remove();
+        btn.closest('.item-encomenda').remove();
+        renumerarItens();
     } else {
-        alert('É necessário manter pelo menos um item.');
+        alert('É necessário ao menos uma encomenda.');
     }
 }
 
-function limparItens() {
-    document.getElementById('itens-container').innerHTML = '';
-    adicionarItem();
+function renumerarItens() {
+    document.querySelectorAll('.item-encomenda small.text-muted').forEach((el, i) => {
+        el.textContent = `Encomenda #${i + 1}`;
+    });
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-    const container = document.getElementById('itens-container');
-    if (container && container.children.length === 0) adicionarItem();
-});
-
 /* ===== QR Code Scanner ===== */
-let qrStream = null;
-let qrAnimationFrame = null;
+let qrStream = null, qrAnimationFrame = null;
 
 async function startQRScanner() {
     const container = document.getElementById('qr-scanner-container');
-    const video = document.getElementById('qr-video');
-    container.classList.remove('d-none');
-    container.classList.add('d-block');
+    const video     = document.getElementById('qr-video');
+    container.classList.replace('d-none', 'd-block');
     try {
         qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = qrStream;
@@ -298,12 +342,12 @@ async function startQRScanner() {
         const scan = () => {
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
+                canvas.width  = video.videoWidth;
                 canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+                const img  = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
                 if (code) {
                     stopQRScanner();
                     document.getElementById('codigoInput').value = code.data;
@@ -313,20 +357,18 @@ async function startQRScanner() {
             qrAnimationFrame = requestAnimationFrame(scan);
         };
         qrAnimationFrame = requestAnimationFrame(scan);
-    } catch (err) {
+    } catch {
         alert('Não foi possível acessar a câmera. Permita o acesso ou use a digitação manual.');
         stopQRScanner();
     }
 }
 
 function stopQRScanner() {
-    const container = document.getElementById('qr-scanner-container');
-    const video = document.getElementById('qr-video');
     if (qrAnimationFrame) { cancelAnimationFrame(qrAnimationFrame); qrAnimationFrame = null; }
-    if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+    if (qrStream)          { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+    const video = document.getElementById('qr-video');
     video.srcObject = null;
-    container.classList.remove('d-block');
-    container.classList.add('d-none');
+    document.getElementById('qr-scanner-container').classList.replace('d-block', 'd-none');
 }
 
 /* ===== Alerta WhatsApp pós-registro ===== */
@@ -334,16 +376,14 @@ window.addEventListener('load', () => {
     const params = new URLSearchParams(window.location.search);
     if (params.has('wa_link')) {
         const link = params.get('wa_link');
-        const div = document.createElement('div');
+        const div  = document.createElement('div');
         div.className = 'alert alert-success alert-dismissible fade show mt-2';
         div.innerHTML = `
-            <i class="bi bi-check-circle-fill me-2"></i>
-            Encomenda registrada com sucesso!
+            <i class="bi bi-check-circle-fill me-2"></i> Encomendas registradas com sucesso!
             <a href="${link}" target="_blank" class="btn btn-success btn-sm ms-2">
                 <i class="bi bi-whatsapp me-1"></i>Enviar aviso agora
             </a>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
         document.querySelector('.container').prepend(div);
     }
 });
