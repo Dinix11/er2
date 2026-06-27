@@ -531,7 +531,17 @@ def index():
                     p["numero"] = u.get("numero")
                     p["nome_residente"] = u.get("nome_residente")
                     p["bloco"] = u.get("bloco")
-                    p["foto_path"] = p.get("foto_url") or p.get("foto_path")
+                    foto_raw = p.get("foto_url") or p.get("foto_path")
+                    if foto_raw:
+                        s = str(foto_raw)
+                        if s.startswith(('http://', 'https://')):
+                            p["foto_path"] = s
+                        elif s.startswith('/foto/'):
+                            p["foto_path"] = s[len('/foto/'):]
+                        else:
+                            p["foto_path"] = s
+                    else:
+                        p["foto_path"] = None
             except:
                 pendentes_lista = []
 
@@ -544,7 +554,17 @@ def index():
                     u["numero"] = uu.get("numero")
                     u["nome_residente"] = uu.get("nome_residente")
                     u["bloco"] = uu.get("bloco")
-                    u["foto_path"] = u.get("foto_url") or u.get("foto_path")
+                    foto_raw = u.get("foto_url") or u.get("foto_path")
+                    if foto_raw:
+                        s = str(foto_raw)
+                        if s.startswith(('http://', 'https://')):
+                            u["foto_path"] = s
+                        elif s.startswith('/foto/'):
+                            u["foto_path"] = s[len('/foto/'):]
+                        else:
+                            u["foto_path"] = s
+                    else:
+                        u["foto_path"] = None
             except:
                 ultimas = []
         else:
@@ -638,21 +658,20 @@ def receber():
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         safe_name = f"{timestamp}_{i}_{filename}"
 
-        # Sempre salvar localmente para o web UI funcionar
-        caminho = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
-        foto.seek(0)
-        foto.save(caminho)
-        foto_url = f"/foto/{safe_name}"
-
-        # Se Supabase configurado, fazer upload para obter URL pública (para mensagem WhatsApp e DB)
         if sb:
-            try:
-                foto.seek(0)
-                public_url = upload_foto_supabase(foto, safe_name)
-                if public_url:
-                    foto_url = public_url  # usar a pública
-            except Exception as e:
-                print("Upload foto Supabase falhou (usando local):", e)
+            # Modo nuvem: upload para Supabase PRIMEIRO — sem fallback local
+            foto.seek(0)
+            public_url = upload_foto_supabase(foto, safe_name)
+            if not public_url:
+                flash(f'Erro ao enviar a foto da encomenda #{i+1} para o servidor. Verifique se o bucket "fotos" existe no Supabase Storage e tente novamente.', 'danger')
+                return redirect(url_for('index'))
+            foto_url = public_url
+        else:
+            # Modo local (SQLite) — salva na pasta static/uploads
+            caminho = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
+            foto.seek(0)
+            foto.save(caminho)
+            foto_url = f"/foto/{safe_name}"
 
         # Inserir
         if sb:
@@ -1325,7 +1344,17 @@ def historico():
                 e["numero"] = u.get("numero")
                 e["nome_residente"] = u.get("nome_residente")
                 e["bloco"] = u.get("bloco")
-                e["foto_path"] = e.get("foto_url") or e.get("foto_path")
+                foto_raw = e.get("foto_url") or e.get("foto_path")
+                if foto_raw:
+                    s = str(foto_raw)
+                    if s.startswith(('http://', 'https://')):
+                        e["foto_path"] = s
+                    elif s.startswith('/foto/'):
+                        e["foto_path"] = s[len('/foto/'):]
+                    else:
+                        e["foto_path"] = s
+                else:
+                    e["foto_path"] = None
         except Exception as ex:
             print("Erro Supabase no histórico:", ex)
             encomendas = []

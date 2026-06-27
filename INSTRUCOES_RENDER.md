@@ -17,13 +17,20 @@ Vá no seu serviço no Render → Environment e adicione:
 
 Depois salve e faça um novo deploy.
 
-### 2. Rode o script SQL no Supabase (só uma vez)
+### 2. Crie o bucket de fotos no Supabase Storage
 1. Abra seu projeto no Supabase
-2. Vá em SQL Editor
-3. Cole todo o conteúdo do arquivo `db_setup.sql`
-4. Clique em Run
+2. Vá em **Storage**
+3. Clique em **New bucket**
+4. Nome: `fotos`
+5. Marque como **Public bucket**
+6. Clique em **Create bucket**
 
-### 3. Faça deploy das mudanças
+### 3. Rode o script SQL no Supabase (só uma vez)
+1. Vá em **SQL Editor**
+2. Cole todo o conteúdo do arquivo `db_setup.sql`
+3. Clique em **Run**
+
+### 4. Faça deploy das mudanças
 Faça push ou Manual Deploy no Render.
 
 ## O que foi corrigido no código
