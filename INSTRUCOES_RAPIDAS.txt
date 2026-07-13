@@ -1,0 +1,57 @@
+╔══════════════════════════════════════════════════════════════╗
+║     SISTEMA DE ENCOMENDAS - INSTRUÇÕES RÁPIDAS              ║
+╚══════════════════════════════════════════════════════════════╝
+
+✅ SISTEMA JÁ ESTÁ FUNCIONANDO!
+   URL: http://192.168.0.3:5000
+   Senha: teste123
+
+═══════════════════════════════════════════════════════════════
+  O QUE VOCÊ PRECISA FAZER AGORA:
+═══════════════════════════════════════════════════════════════
+
+1️⃣  CLOUDFLARE R2 (5 minutos)
+   ┌───────────────────────────────────────────────────────────┐
+   │ 1. Acesse: https://dash.cloudflare.com                   │
+   │ 2. Menu → R2 → Buckets → Encomendas-fotos               │
+   │ 3. Aba Settings → Public Access → Enable Public Access   │
+   │ 4. Confirmar                                             │
+   │                                                           │
+   │ 5. Volte ao VS Code e reinicie:                          │
+   │    CTRL+C (parar)                                         │
+   │    python app.py (iniciar)                                │
+   └───────────────────────────────────────────────────────────┘
+
+2️⃣  GITHUB (opcional - 3 minutos)
+   ┌───────────────────────────────────────────────────────────┐
+   │ 1. Acesse: https://github.com                            │
+   │ 2. Crie um novo repositório (ex: encomendas-mirantes)    │
+   │ 3. No VS Code, execute:                                  │
+   │    configurar_github.bat                                  │
+   │ 4. Siga as instruções na tela                            │
+   └───────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════
+  ARQUIVOS CRIADOS PARA VOCÊ:
+═══════════════════════════════════════════════════════════════
+
+📄 PASSO_A_PASSO_COMPLETO.md  - Guia detalhado completo
+📄 GUIA_CORRIGIR_PERMISSOES_R2.md - Como configurar R2
+📄 configurar_github.bat       - Script automático para GitHub
+📄 check_db.py                 - Verificação do banco de dados
+
+═══════════════════════════════════════════════════════════════
+  TESTE AGORA:
+═══════════════════════════════════════════════════════════════
+
+1. Abra o navegador: http://192.168.0.3:5000
+2. Digite a senha: teste123
+3. Registre uma encomenda de teste
+4. Verifique se funciona!
+
+═══════════════════════════════════════════════════════════════
+
+💡 DICA: O sistema já está funcionando com armazenamento local!
+   O R2 é opcional - serve apenas para backup na nuvem.
+
+═══════════════════════════════════════════════════════════════

@@ -1,6 +1,7 @@
-# Sistema de Recebimento, Aviso e Entrega de Encomendas
+# Sistema de Recebimento, Aviso e Entrega de Encomendas (Cloudflare R2)
 
 Sistema completo para condomínios gerenciar o fluxo de encomendas no setor de entregas.
+**Versão com Cloudflare R2** - Armazenamento de imagens otimizado com limite de 10GB.
 
 ## Funcionalidades
 
@@ -9,6 +10,7 @@ Sistema completo para condomínios gerenciar o fluxo de encomendas no setor de e
   - Inserir descrição
   - Anexar **foto obrigatória** da encomenda
   - Geração automática de **código único** (6 caracteres alfanuméricos)
+  - **Compactação automática de imagens** (otimização para economizar espaço)
 
 - **Aviso automático**:
   - Gera link direto para WhatsApp (wa.me)
@@ -23,6 +25,12 @@ Sistema completo para condomínios gerenciar o fluxo de encomendas no setor de e
   - Sistema localiza a encomenda, exibe foto e detalhes
   - Confirmação = baixa registrada
   - O código funciona como **assinatura digital de recebimento**
+
+- **Gerenciamento de Armazenamento**:
+  - **Limite de 10GB** no Cloudflare R2
+  - **Compactação automática** de imagens (qualidade 75%, max 1920px)
+  - **Limpeza automática** aos 80% (libera os 20% mais antigos)
+  - Fallback para armazenamento local se R2 não estiver configurado
 
 - **Outros**:
   - Histórico completo com filtros
@@ -39,46 +47,65 @@ Sistema completo para condomínios gerenciar o fluxo de encomendas no setor de e
 2. Abra o PowerShell ou Prompt de Comando dentro da pasta do projeto.
 
 3. Execute o script pronto:
-
-   - Duplo clique em `run.bat`, ou
-   - No PowerShell:
-     ```powershell
-     .\run.ps1
-     ```
-
-O sistema vai criar o ambiente virtual automaticamente na primeira execução.
-
-### Como rodar em outro computador (muito importante)
-
-Siga estes passos **exatamente**:
-
-1. **Copie os arquivos**
-   - Compacte a pasta inteira `condominio-encomendas` em um arquivo `.zip`
-   - **Importante**: Exclua a pasta `venv` antes de zipar (ela é específica de cada máquina).
-   - Copie o zip para o outro computador (pendrive, rede, Google Drive, etc.).
-
-2. **No outro computador**:
-   - Descompacte o arquivo em qualquer lugar (ex: `Documentos` ou `Área de Trabalho`).
-   - Instale o Python 3.12 ou 3.13 em [python.org](https://python.org) (marque "Add to PATH").
-
-3. **Execute o programa**:
-   - Entre na pasta descompactada.
-   - Dê **duplo clique** no arquivo `run.bat`
-
-   Ou manualmente no PowerShell:
    ```powershell
-   python -m venv venv
-   .\venv\Scripts\Activate.ps1
-   pip install -r requirements.txt
    python app.py
    ```
 
-4. Abra o navegador e acesse:
-   **http://127.0.0.1:5000**
+### Configuração do Cloudflare R2 (Opcional mas Recomendado)
+
+1. **Crie uma conta no Cloudflare** (gratuita):
+   - Acesse https://dash.cloudflare.com
+   - Crie sua conta gratuita
+
+2. **Configure o R2**:
+   - No painel, vá em **R2** > **Overview**
+   - Anote seu **Account ID**
+   - Clique em **"Manage R2 API Tokens"**
+   - Crie um token com permissões de **Read** e **Write**
+   - Anote o **Access Key ID** e **Secret Access Key**
+
+3. **Crie um bucket**:
+   - No R2, clique em **"Create bucket"**
+   - Nome: `encomendas-fotos` (ou outro nome de sua preferência)
+   - Escolha a localização mais próxima
+
+4. **Configure as variáveis de ambiente**:
+   - Copie o arquivo `.env.example` para `.env`
+   - Preencha com suas credenciais:
+     ```env
+     R2_ACCOUNT_ID=seu-account-id
+     R2_ACCESS_KEY_ID=seu-access-key-id
+     R2_SECRET_ACCESS_KEY=seu-secret-access-key
+     R2_BUCKET_NAME=encomendas-fotos
+     ```
+
+5. **Instale as dependências**:
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+6. **Execute o sistema**:
+   ```powershell
+   python app.py
+   ```
+
+### Como rodar em outro computador
+
+1. **Copie os arquivos**
+   - Compacte a pasta inteira `Encomendas-Mirantes-R2` em um arquivo `.zip`
+   - **Importante**: Exclua a pasta `venv` antes de zipar
+   - Copie o zip para o outro computador
+
+2. **No outro computador**:
+   - Descompacte o arquivo
+   - Instale o Python 3.12 ou 3.13 (marque "Add to PATH")
+   - Instale as dependências: `pip install -r requirements.txt`
+   - (Opcional) Configure o `.env` com credenciais do R2
+   - Execute: `python app.py`
+
+3. Acesse: **http://127.0.0.1:5000**
 
 ### Acessando de outros computadores da rede (condomínio)
-
-O sistema já está configurado para aceitar conexões da rede.
 
 1. No computador que está rodando o programa, abra o CMD e digite:
    ```cmd
@@ -86,20 +113,10 @@ O sistema já está configurado para aceitar conexões da rede.
    ```
    Anote o endereço **IPv4 Address** (ex: 192.168.1.105)
 
-2. Em outro computador da mesma rede Wi-Fi, abra o navegador e acesse:
+2. Em outro computador da mesma rede Wi-Fi, acesse:
    ```
    http://192.168.1.105:5000
    ```
-   (substitua pelo IP real que você anotou)
-
-**Possível problema de firewall**:
-- Se não conseguir acessar, abra o Windows Defender Firewall → "Permitir um app ou recurso".
-- Adicione o Python ou libere a porta 5000.
-
-### Executando automaticamente quando o computador ligar
-
-- Crie um atalho do `run.bat` e coloque na pasta de Inicialização do Windows:
-  Pressione `Win + R` → digite `shell:startup` → cole o atalho.
 
 ## Fluxo de Uso (Passo a Passo)
 
@@ -107,7 +124,7 @@ O sistema já está configurado para aceitar conexões da rede.
 1. No painel principal, preencha:
    - Unidade
    - Descrição (opcional)
-   - Foto do pacote
+   - Foto do pacote (será compactada automaticamente)
 2. Clique em **Registrar Encomenda + Enviar Aviso**
 3. O sistema gera o código e mostra o botão para **Abrir WhatsApp**
 4. Clique no botão para enviar a mensagem com o código para o morador
@@ -132,6 +149,23 @@ O sistema já está configurado para aceitar conexões da rede.
 - O sistema extrai automaticamente nome, bloco, apartamento e telefone
 - Revise e importe com um clique
 
+## Monitoramento do Armazenamento
+
+O sistema monitora automaticamente o espaço do bucket R2:
+
+- **0% - 80%**: Funcionamento normal
+- **80% - 100%**: Alerta e limpeza automática dos 20% mais antigos
+- **Logs**: Verifique o console para mensagens de status do R2
+
+### Comandos úteis
+
+Ver estatísticas do bucket (adicionar ao código ou criar endpoint):
+```python
+from cloudflare_r2 import get_bucket_stats
+stats = get_bucket_stats()
+print(f"Espaço usado: {stats['espaco_usado_gb']:.2f} GB de {stats['espaco_limite_gb']} GB")
+```
+
 ## Dicas Importantes
 
 - O código só é conhecido pelo morador (recebido via WhatsApp)
@@ -140,11 +174,16 @@ O sistema já está configurado para aceitar conexões da rede.
 - O morador informa o código verbalmente no momento da retirada
 - A foto serve como prova de recebimento
 - Use o histórico para consultar tudo que já foi entregue
+- **Imagens são compactadas automaticamente** para economizar espaço (qualidade 75%, max 1920px)
+- **Sem R2 configurado**: o sistema usa armazenamento local (funciona normalmente, mas dados podem ser perdidos)
 
 ## Personalização
 
 - Para mudar o nome do condomínio, edite o arquivo `templates/base.html`
-- Para adicionar autenticação simples (senha do setor de entregas), pode ser implementado posteriormente
+- Para alterar a senha do setor de entregas, configure `ADMIN_PASSWORD` no `.env`
+- Para ajustar o limite de armazenamento, altere `STORAGE_LIMIT_GB` no `.env`
+- Para alterar o percentual de limpeza, altere `STORAGE_WARNING_THRESHOLD` no `.env`
+- Para adicionar autenticação mais robusta, pode ser implementado posteriormente
 - Para integração automática com WhatsApp oficial (sem precisar clicar), pode-se integrar com:
   - WhatsApp Business API (Meta)
   - Twilio
@@ -153,20 +192,58 @@ O sistema já está configurado para aceitar conexões da rede.
 ## Estrutura de Arquivos
 
 ```
-condominio-encomendas/
+Encomendas-Mirantes-R2/
 ├── app.py                 # Aplicação Flask principal
-├── requirements.txt
+├── cloudflare_r2.py       # Módulo de integração com Cloudflare R2
+├── requirements.txt       # Dependências Python
+├── .env.example           # Exemplo de configuração
 ├── encomendas.db          # Banco de dados SQLite (criado automaticamente)
 ├── static/
-│   └── uploads/           # Fotos das encomendas
+│   └── uploads/           # Fotos das encomendas (fallback local)
 ├── templates/
 │   ├── base.html
 │   ├── index.html         # Painel do setor de entregas
 │   ├── unidades.html
-│   └── historico.html
+│   ├── historico.html
+│   └── importar.html
 └── README.md
 ```
 
----
+## Diferenças da Versão com Supabase
+
+| Recurso | Versão Supabase | Versão R2 |
+|---------|----------------|-----------|
+| Banco de dados | Supabase (PostgreSQL) | SQLite (local) |
+| Armazenamento de fotos | Supabase Storage | Cloudflare R2 |
+| Limite de armazenamento | 500MB (gratuito) | 10GB (gratuito) |
+| Compactação de imagens | ❌ | ✅ Automática |
+| Limpeza automática | ❌ | ✅ Aos 80% |
+| Custo | Gratuito (limitado) | Gratuito (10GB) |
+| Dados na nuvem | ✅ | ❌ (local) |
+
+## Solução de Problemas
+
+### Erro de conexão com R2
+- Verifique se as credenciais no `.env` estão corretas
+- Confira se o bucket existe no painel do R2
+- Verifique se o token tem permissões de leitura e escrita
+
+### Imagens não aparecem
+- Verifique se o bucket está configurado como público
+- Confira se a URL do R2 está correta
+- Verifique os logs do console para erros de upload
+
+### Espaço cheio
+- O sistema limpa automaticamente os 20% mais antigos aos 80%
+- Para limpar manualmente, delete arquivos no painel do R2
+- Aumente o limite em `STORAGE_LIMIT_GB` no `.env`
+
+## Licença
 
 Desenvolvido para uso prático em setor de entregas de condomínios.
+
+---
+
+**Versão**: 2.0 (Cloudflare R2)  
+**Data**: 2026  
+**Desenvolvido para**: UBS Pium / Condomínio Mirantes

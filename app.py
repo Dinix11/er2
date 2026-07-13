@@ -3,6 +3,7 @@
 """
 Sistema de Recebimento, Aviso e Entrega de Encomendas
 Condomínio - Setor de Entregas
+Versão com Cloudflare R2
 """
 from __future__ import annotations
 
@@ -18,10 +19,12 @@ from functools import wraps
 import re
 import csv
 from io import StringIO
-from supabase import create_client, Client
 import requests  # para upload se necessário
 from dotenv import load_dotenv
 load_dotenv()  # carrega variáveis do .env para desenvolvimento local
+
+# Importar módulo R2
+from cloudflare_r2 import upload_foto_r2, get_bucket_stats
 
 # Configuração
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -34,26 +37,29 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 app.secret_key = os.environ.get('SECRET_KEY', 'condominio-encomendas-dev-key-2026')
 
-# Senha simples para proteção (configure ADMIN_PASSWORD nas variáveis de ambiente no Render)
+# Senha simples para proteção (configure ADMIN_PASSWORD nas variáveis de ambiente)
 # MUDE ESSA SENHA! Nunca use o valor padrão em produção.
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'setordentregas123')
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# === LOG DE SUPABASE (executa no import, visível no Gunicorn do Render) ===
-if not globals().get('_supabase_startup_logged'):
-    globals()['_supabase_startup_logged'] = True
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_KEY")
-    print("=== SUPABASE ENV CHECK (Render) ===")
-    print(f"SUPABASE_URL present: {bool(supabase_url)} | value starts with: {str(supabase_url)[:30] if supabase_url else 'None'}")
-    print(f"SUPABASE_KEY present: {bool(supabase_key)} | value starts with: {str(supabase_key)[:10] if supabase_key else 'None'}")
-    if supabase_url and supabase_key:
-        print("✅ SUPABASE CONFIGURADO - usando banco na nuvem (dados persistem após reinício no Render)")
+# === LOG DE CLOUDFLARE R2 (executa no import) ===
+if not globals().get('_r2_startup_logged'):
+    globals()['_r2_startup_logged'] = True
+    r2_account = os.getenv("R2_ACCOUNT_ID")
+    r2_key = os.getenv("R2_ACCESS_KEY_ID")
+    print("=== CLOUDFLARE R2 ENV CHECK ===")
+    print(f"R2_ACCOUNT_ID present: {bool(r2_account)} | value: {str(r2_account)[:30] if r2_account else 'None'}")
+    print(f"R2_ACCESS_KEY_ID present: {bool(r2_key)} | value starts with: {str(r2_key)[:10] if r2_key else 'None'}")
+    if r2_account and r2_key:
+        print("✅ CLOUDFLARE R2 CONFIGURADO - usando armazenamento na nuvem")
+        stats = get_bucket_stats()
+        if stats:
+            print(f"   Bucket: {stats['total_arquivos']} arquivos, {stats['espaco_usado_gb']:.2f} GB de {stats['espaco_limite_gb']} GB")
     else:
-        print("⚠️  SUPABASE NÃO CONFIGURADO - usando SQLite local (dados serão perdidos ao reiniciar)")
-        print(f"   DEBUG: SUPABASE_URL = {'PRESENTE' if supabase_url else 'AUSENTE'}")
-        print(f"   DEBUG: SUPABASE_KEY = {'PRESENTE' if supabase_key else 'AUSENTE'}")
+        print("⚠️  CLOUDFLARE R2 NÃO CONFIGURADO - usando armazenamento local")
+        print(f"   DEBUG: R2_ACCOUNT_ID = {'PRESENTE' if r2_account else 'AUSENTE'}")
+        print(f"   DEBUG: R2_ACCESS_KEY_ID = {'PRESENTE' if r2_key else 'AUSENTE'}")
     print("====================================")
 
 # Proteção por senha simples
@@ -73,22 +79,9 @@ def require_login():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
 
-# Supabase (nuvem gratuita)
-supabase: Client = None
-
-def get_supabase() -> Client | None:
-    global supabase
-    if supabase is None:
-        url = os.getenv("SUPABASE_URL")
-        key = os.getenv("SUPABASE_KEY")
-        if url and key:
-            supabase = create_client(url, key)
-        # o log de fallback é feito no nível do módulo
-    return supabase
-
 
 def _row_to_dict(row):
-    """Convert sqlite3.Row or Supabase dict to regular dict"""
+    """Convert sqlite3.Row to regular dict"""
     if row is None:
         return None
     if isinstance(row, dict):
@@ -234,21 +227,12 @@ def allowed_file(filename):
 
 def gerar_codigo(tamanho=6):
     """Gera código alfanumérico único e fácil de falar"""
-    sb = get_supabase()
     alfabeto = string.ascii_uppercase + string.digits
     for _ in range(20):  # tenta até 20 vezes
         codigo = ''.join(secrets.choice(alfabeto) for _ in range(tamanho))
-        existe = False
-        if sb:
-            try:
-                res = sb.table("encomendas").select("id").eq("codigo", codigo).limit(1).execute()
-                existe = bool(res.data)
-            except:
-                existe = False
-        else:
-            conn = get_db()
-            existe = conn.execute("SELECT 1 FROM encomendas WHERE codigo = ?", (codigo,)).fetchone()
-            conn.close()
+        conn = get_db()
+        existe = conn.execute("SELECT 1 FROM encomendas WHERE codigo = ?", (codigo,)).fetchone()
+        conn.close()
         if not existe:
             return codigo
     # fallback bem improvável
@@ -396,216 +380,63 @@ def obter_unidade(unidade_id):
 
 
 def registrar_notificacao(encomenda_id, telefone, mensagem, link):
-    sb = get_supabase()
-    if sb:
-        try:
-            sb.table("notificacoes").insert({
-                "encomenda_id": encomenda_id,
-                "telefone": telefone,
-                "mensagem": mensagem,
-                "link_whatsapp": link
-            }).execute()
-        except Exception as e:
-            print("Erro Supabase notificação:", e)
-    else:
-        conn = get_db()
+    """Registra notificação no banco de dados local"""
+    conn = get_db()
+    try:
         conn.execute(
             "INSERT INTO notificacoes (encomenda_id, telefone, mensagem, link_whatsapp) VALUES (?, ?, ?, ?)",
             (encomenda_id, telefone, mensagem, link)
         )
         conn.commit()
+    except Exception as e:
+        print("Erro ao registrar notificação:", e)
+    finally:
         conn.close()
 
-def upload_foto_supabase(file, filename: str) -> str | None:
-    """Upload foto para Supabase Storage e retorna URL pública"""
-    sb = get_supabase()
-    if not sb:
-        return None
-    try:
-        bucket = "fotos"
-        path = f"encomendas/{datetime.now().strftime('%Y%m%d')}/{filename}"
-
-        file.seek(0)
-        data = file.read()
-        if not data:
-            print(f"[UPLOAD] Arquivo vazio: {filename}")
-            return None
-
-        file_options = {
-            "contentType": getattr(file, "content_type", None) or "image/jpeg",
-            "upsert": "true",  # string, não bool — headers HTTP devem ser str/bytes
-        }
-
-        print(f"[UPLOAD] Enviando path={path} size={len(data)} type={file_options['contentType']}")
-        sb.storage.from_(bucket).upload(path, data, file_options)
-        public_url = sb.storage.from_(bucket).get_public_url(path)
-        print(f"[UPLOAD] OK url={public_url}")
-        return public_url
-    except Exception as e:
-        print("[UPLOAD] ERRO:", repr(e))
-        import traceback
-        traceback.print_exc()
-        return None
+# Função de upload movida para cloudflare_r2.py
 
 
 def gerar_qr_code(codigo: str) -> str:
-    """Gera um QR Code para o código. Tenta Supabase Storage, fallback para gerador público."""
-    sb = get_supabase()
-    if sb:
-        try:
-            import qrcode
-            from io import BytesIO
-
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            qr.add_data(codigo)
-            qr.make(fit=True)
-
-            img = qr.make_image(fill_color="black", back_color="white")
-            buffer = BytesIO()
-            img.save(buffer, format="PNG")
-            buffer.seek(0)
-
-            bucket = "fotos"
-            path = f"qrcodes/{codigo}.png"
-            content = buffer.getvalue()
-
-            sb.storage.from_(bucket).upload(
-                path, 
-                content, 
-                {"content-type": "image/png", "upsert": True}
-            )
-            public_url = sb.storage.from_(bucket).get_public_url(path)
-            return public_url
-        except Exception as e:
-            print("Erro ao gerar/upload QR no Supabase:", e)
-            # Fallback para gerador público
-
-    # Fallback público (funciona sem Supabase)
+    """Gera um QR Code para o código. Usa gerador público."""
     from urllib.parse import quote
     return f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={quote(codigo)}"
 
 
 @app.route('/')
 def index():
-    sb = get_supabase()
     conn = None
 
     try:
-        if sb:
-            # --- SUPABASE ---
-            # Estatísticas
-            try:
-                p_count = sb.table("encomendas").select("id", count="exact").eq("status", "pendente").execute()
-                pendentes = p_count.count or 0
-            except:
-                pendentes = 0
+        # --- SQLITE ---
+        conn = get_db()
+        pendentes = conn.execute(
+            "SELECT COUNT(*) FROM encomendas WHERE status = 'pendente'"
+        ).fetchone()[0]
 
-            try:
-                # Safer way for "entregues hoje" on Supabase
-                from datetime import date, datetime as dt
-                today = date.today()
-                res = sb.table("encomendas").select("data_entrega").eq("status", "entregue").execute()
-                entregues_hoje = 0
-                for row in (res.data or []):
-                    d = row.get("data_entrega")
-                    if d:
-                        try:
-                            entrega_date = dt.fromisoformat(str(d).replace('Z', '+00:00')).date()
-                            if entrega_date == today:
-                                entregues_hoje += 1
-                        except:
-                            pass
-            except:
-                entregues_hoje = 0
+        entregues_hoje = conn.execute(
+            "SELECT COUNT(*) FROM encomendas WHERE status = 'entregue' AND date(data_entrega) = date('now', 'localtime')"
+        ).fetchone()[0]
 
-            # Unidades
-            try:
-                u_res = sb.table("unidades").select("*").order("bloco").order("numero").execute()
-                unidades = u_res.data or []
-            except:
-                unidades = []
+        unidades = conn.execute(
+            "SELECT * FROM unidades ORDER BY bloco, numero"
+        ).fetchall()
 
-            # Pendentes com join
-            try:
-                p_res = sb.table("encomendas").select("*, unidades!inner(numero, nome_residente, bloco)").eq("status", "pendente").order("data_recebimento", desc=True).execute()
-                pendentes_lista = p_res.data or []
-                for p in pendentes_lista:
-                    u = p.get("unidades", {}) or {}
-                    p["numero"] = u.get("numero")
-                    p["nome_residente"] = u.get("nome_residente")
-                    p["bloco"] = u.get("bloco")
-                    foto_raw = p.get("foto_url") or p.get("foto_path")
-                    if foto_raw:
-                        s = str(foto_raw)
-                        if s.startswith(('http://', 'https://')):
-                            p["foto_path"] = s
-                        elif s.startswith('/foto/'):
-                            p["foto_path"] = s[len('/foto/'):]
-                        else:
-                            p["foto_path"] = s
-                    else:
-                        p["foto_path"] = None
-            except:
-                pendentes_lista = []
+        pendentes_lista = conn.execute('''
+            SELECT e.*, u.numero, u.nome_residente, u.bloco
+            FROM encomendas e
+            JOIN unidades u ON e.unidade_id = u.id
+            WHERE e.status = 'pendente'
+            ORDER BY e.data_recebimento DESC
+        ''').fetchall()
 
-            # Últimas entregues
-            try:
-                u_res = sb.table("encomendas").select("*, unidades!inner(numero, nome_residente, bloco)").eq("status", "entregue").order("data_entrega", desc=True).limit(5).execute()
-                ultimas = u_res.data or []
-                for u in ultimas:
-                    uu = u.get("unidades", {}) or {}
-                    u["numero"] = uu.get("numero")
-                    u["nome_residente"] = uu.get("nome_residente")
-                    u["bloco"] = uu.get("bloco")
-                    foto_raw = u.get("foto_url") or u.get("foto_path")
-                    if foto_raw:
-                        s = str(foto_raw)
-                        if s.startswith(('http://', 'https://')):
-                            u["foto_path"] = s
-                        elif s.startswith('/foto/'):
-                            u["foto_path"] = s[len('/foto/'):]
-                        else:
-                            u["foto_path"] = s
-                    else:
-                        u["foto_path"] = None
-            except:
-                ultimas = []
-        else:
-            # --- SQLITE FALLBACK ---
-            conn = get_db()
-            pendentes = conn.execute(
-                "SELECT COUNT(*) FROM encomendas WHERE status = 'pendente'"
-            ).fetchone()[0]
-
-            entregues_hoje = conn.execute(
-                "SELECT COUNT(*) FROM encomendas WHERE status = 'entregue' AND date(data_entrega) = date('now', 'localtime')"
-            ).fetchone()[0]
-
-            unidades = conn.execute(
-                "SELECT * FROM unidades ORDER BY bloco, numero"
-            ).fetchall()
-
-            pendentes_lista = conn.execute('''
-                SELECT e.*, u.numero, u.nome_residente, u.bloco
-                FROM encomendas e
-                JOIN unidades u ON e.unidade_id = u.id
-                WHERE e.status = 'pendente'
-                ORDER BY e.data_recebimento DESC
-            ''').fetchall()
-
-            ultimas = conn.execute('''
-                SELECT e.*, u.numero, u.nome_residente, u.bloco
-                FROM encomendas e
-                JOIN unidades u ON e.unidade_id = u.id
-                WHERE e.status = 'entregue'
-                ORDER BY e.data_entrega DESC
-                LIMIT 5
-            ''').fetchall()
+        ultimas = conn.execute('''
+            SELECT e.*, u.numero, u.nome_residente, u.bloco
+            FROM encomendas e
+            JOIN unidades u ON e.unidade_id = u.id
+            WHERE e.status = 'entregue'
+            ORDER BY e.data_entrega DESC
+            LIMIT 5
+        ''').fetchall()
     finally:
         if conn:
             conn.close()
@@ -613,6 +444,12 @@ def index():
     # Normalize para lista de dicts (para JS tojson)
     if unidades and not isinstance(unidades[0], dict):
         unidades = [dict(u) for u in unidades]
+    
+    if pendentes_lista and not isinstance(pendentes_lista[0], dict):
+        pendentes_lista = [dict(p) for p in pendentes_lista]
+    
+    if ultimas and not isinstance(ultimas[0], dict):
+        ultimas = [dict(u) for u in ultimas]
 
     return render_template(
         'index.html',
@@ -626,8 +463,7 @@ def index():
 
 @app.route('/receber', methods=['POST'])
 def receber():
-    """Recebe encomendas. Suporta lote com 1 código. Usa Supabase (nuvem gratuita) se configurado."""
-    sb = get_supabase()
+    """Recebe encomendas. Suporta lote com 1 código. Usa Cloudflare R2 se configurado."""
     data_receb = datetime.now().isoformat(sep=' ', timespec='seconds')
 
     unidades_ids = request.form.getlist('unidade_id')
@@ -666,56 +502,32 @@ def receber():
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         safe_name = f"{timestamp}_{i}_{filename}"
 
-        if sb:
-            # Modo nuvem: upload para Supabase PRIMEIRO — sem fallback local
-            public_url = upload_foto_supabase(foto, safe_name)
-            if not public_url:
-                flash(f'Erro ao enviar a foto da encomenda #{i+1} para o servidor. Verifique se o bucket "fotos" existe no Supabase Storage e tente novamente.', 'danger')
-                return redirect(url_for('index'))
-            foto_url = public_url
-        else:
-            # Modo local (SQLite) — salva na pasta static/uploads
+        # Upload para R2 ou local
+        foto_url = upload_foto_r2(foto, safe_name)
+        
+        if not foto_url:
+            # Fallback para local se R2 falhar
             caminho = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
             foto.seek(0)
             foto.save(caminho)
             foto_url = f"/foto/{safe_name}"
+            print(f"[FALLBACK] Foto salva localmente: {safe_name}")
 
-        # Inserir
-        if sb:
-            try:
-                res = sb.table("encomendas").insert({
-                    "unidade_id": int(uid),
-                    "data_recebimento": data_receb,
-                    "descricao": descricao,
-                    "foto_url": foto_url,
-                    "codigo": codigo,
-                    "status": "pendente"
-                }).execute()
-                inserted = res.data[0] if res.data else {}
-                ids_inseridos.append(inserted.get("id"))
-            except Exception as e:
-                print("Erro insert Supabase:", e)
-                flash("Erro ao salvar no banco nuvem.", "danger")
-                return redirect(url_for('index'))
-        else:
-            conn = get_db()
-            cur = conn.execute('''
-                INSERT INTO encomendas (unidade_id, data_recebimento, descricao, foto_path, codigo, status)
-                VALUES (?, ?, ?, ?, ?, 'pendente')
-            ''', (uid, data_receb, descricao, safe_name if not foto_url.startswith('http') else foto_url, codigo))
-            ids_inseridos.append(cur.lastrowid)
-            conn.commit()
-            conn.close()
+        # Inserir no banco
+        conn = get_db()
+        cur = conn.execute('''
+            INSERT INTO encomendas (unidade_id, data_recebimento, descricao, foto_path, codigo, status)
+            VALUES (?, ?, ?, ?, ?, 'pendente')
+        ''', (uid, data_receb, descricao, foto_url, codigo))
+        ids_inseridos.append(cur.lastrowid)
+        conn.commit()
+        conn.close()
 
         # Info para mensagem
-        if sb:
-            u_res = sb.table("unidades").select("*").eq("id", uid).execute()
-            unidade = u_res.data[0] if u_res.data else None
-        else:
-            conn = get_db()
-            row = conn.execute("SELECT * FROM unidades WHERE id = ?", (uid,)).fetchone()
-            conn.close()
-            unidade = dict(row) if row else None
+        conn = get_db()
+        row = conn.execute("SELECT * FROM unidades WHERE id = ?", (uid,)).fetchone()
+        conn.close()
+        unidade = dict(row) if row else None
 
         if unidade:
             u_label = f"{unidade.get('bloco') or ''} {unidade.get('numero')}".strip()
@@ -732,7 +544,7 @@ def receber():
         flash('Nenhuma encomenda válida foi registrada.', 'danger')
         return redirect(url_for('index'))
 
-    # Gera QR Code para o lote (em vez de código textual)
+    # Gera QR Code para o lote
     qr_url = gerar_qr_code(codigo)
 
     # Notificação WhatsApp
@@ -742,26 +554,14 @@ def receber():
         morador_id = request.form.get('morador_id', '').strip()
         morador_nome = None
         if morador_id:
-            sb2 = get_supabase()
-            if sb2:
-                try:
-                    mr = sb2.table("moradores").select("nome, telefone").eq("id", int(morador_id)).execute()
-                    if mr.data:
-                        morador_nome = mr.data[0].get('nome')
-                        tel_morador  = mr.data[0].get('telefone')
-                        telefone = limpar_telefone(tel_morador)
-                except Exception as e:
-                    print("Erro Supabase morador telefone:", e)
-                    morador_id = None
+            conn = get_db()
+            mr = conn.execute("SELECT nome, telefone FROM moradores WHERE id=?", (int(morador_id),)).fetchone()
+            conn.close()
+            if mr:
+                morador_nome = mr['nome']
+                telefone = limpar_telefone(mr['telefone'])
             else:
-                conn = get_db()
-                mr = conn.execute("SELECT nome, telefone FROM moradores WHERE id=?", (int(morador_id),)).fetchone()
-                conn.close()
-                if mr:
-                    morador_nome = mr['nome']
-                    telefone = limpar_telefone(mr['telefone'])
-                else:
-                    morador_id = None
+                morador_id = None
 
         if not morador_id:
             tel = primeira_unidade.get('telefone') if isinstance(primeira_unidade, dict) else primeira_unidade['telefone']
@@ -831,110 +631,69 @@ def entregar():
         flash('Informe o código de retirada.', 'danger')
         return redirect(url_for('index'))
 
-    sb = get_supabase()
     data_entrega = datetime.now().isoformat(sep=' ', timespec='seconds')
 
-    if sb:
-        try:
-            # Buscar pendentes
-            res = sb.table("encomendas").select("*, unidades!inner(numero, bloco)").eq("codigo", codigo).eq("status", "pendente").execute()
-            pendentes = res.data or []
-            if not pendentes:
-                flash('Código inválido ou encomenda já foi entregue.', 'danger')
-                return redirect(url_for('index'))
+    # SQLite
+    conn = get_db()
+    pendentes = conn.execute('''
+        SELECT e.*, u.numero, u.nome_residente, u.bloco
+        FROM encomendas e
+        JOIN unidades u ON e.unidade_id = u.id
+        WHERE e.codigo = ? AND e.status = 'pendente'
+    ''', (codigo,)).fetchall()
 
-            # Atualizar todas
-            sb.table("encomendas").update({
-                "status": "entregue",
-                "data_entrega": data_entrega,
-                "entregue_por": "Setor de Entregas"
-            }).eq("codigo", codigo).eq("status", "pendente").execute()
-
-            qtd = len(pendentes)
-            u = pendentes[0].get("unidades", {})
-            unidade_label = f"{u.get('bloco') or ''} {u.get('numero')}".strip()
-
-            if qtd == 1:
-                flash(f'Encomenda entregue com sucesso para a unidade {unidade_label}! O código informado foi registrado como assinatura.', 'success')
-            else:
-                flash(f'{qtd} encomendas entregues com sucesso (lote) para a unidade {unidade_label}!', 'success')
-            return redirect(url_for('index'))
-        except Exception as e:
-            print("Erro Supabase entregar:", e)
-            flash('Erro ao dar baixa no banco nuvem.', 'danger')
-            return redirect(url_for('index'))
-    else:
-        # SQLite fallback
-        conn = get_db()
-        pendentes = conn.execute('''
-            SELECT e.*, u.numero, u.nome_residente, u.bloco
-            FROM encomendas e
-            JOIN unidades u ON e.unidade_id = u.id
-            WHERE e.codigo = ? AND e.status = 'pendente'
-        ''', (codigo,)).fetchall()
-
-        if not pendentes:
-            conn.close()
-            flash('Código inválido ou encomenda já foi entregue.', 'danger')
-            return redirect(url_for('index'))
-
-        conn.execute('''
-            UPDATE encomendas 
-            SET status = 'entregue', data_entrega = ?, entregue_por = ?
-            WHERE codigo = ? AND status = 'pendente'
-        ''', (data_entrega, 'Setor de Entregas', codigo))
-        conn.commit()
-
-        qtd = len(pendentes)
-        unidade_label = f"{pendentes[0]['bloco'] or ''} {pendentes[0]['numero']}".strip()
+    if not pendentes:
         conn.close()
-
-        if qtd == 1:
-            flash(f'Encomenda entregue com sucesso para a unidade {unidade_label}! O código informado foi registrado como assinatura.', 'success')
-        else:
-            flash(f'{qtd} encomendas entregues com sucesso para a unidade {unidade_label}!', 'success')
+        flash('Código inválido ou encomenda já foi entregue.', 'danger')
         return redirect(url_for('index'))
+
+    conn.execute('''
+        UPDATE encomendas 
+        SET status = 'entregue', data_entrega = ?, entregue_por = ?
+        WHERE codigo = ? AND status = 'pendente'
+    ''', (data_entrega, 'Setor de Entregas', codigo))
+    conn.commit()
+
+    qtd = len(pendentes)
+    unidade_label = f"{pendentes[0]['bloco'] or ''} {pendentes[0]['numero']}".strip()
+    conn.close()
+
+    if qtd == 1:
+        flash(f'Encomenda entregue com sucesso para a unidade {unidade_label}! O código informado foi registrado como assinatura.', 'success')
+    else:
+        flash(f'{qtd} encomendas entregues com sucesso para a unidade {unidade_label}!', 'success')
+    return redirect(url_for('index'))
 
 
 @app.route('/verificar_codigo')
 def verificar_codigo():
-    """AJAX: Verifica um código e retorna as encomendas (Supabase ou local)"""
+    """AJAX: Verifica um código e retorna as encomendas"""
     codigo = request.args.get('codigo', '').strip().upper()
     if not codigo:
         return jsonify({'valido': False})
 
-    sb = get_supabase()
-    if sb:
-        try:
-            res = sb.table("encomendas").select("*, unidades!inner(numero, nome_residente, bloco)").eq("codigo", codigo).eq("status", "pendente").order("id").execute()
-            rows = res.data or []
-        except Exception as e:
-            print("Erro Supabase verificar:", e)
-            rows = []
-    else:
-        conn = get_db()
-        rows = conn.execute('''
-            SELECT e.*, u.numero, u.nome_residente, u.bloco
-            FROM encomendas e
-            JOIN unidades u ON e.unidade_id = u.id
-            WHERE e.codigo = ? AND e.status = 'pendente'
-            ORDER BY e.id
-        ''', (codigo,)).fetchall()
-        conn.close()
-        rows = [dict(r) for r in rows] if rows else []
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT e.*, u.numero, u.nome_residente, u.bloco
+        FROM encomendas e
+        JOIN unidades u ON e.unidade_id = u.id
+        WHERE e.codigo = ? AND e.status = 'pendente'
+        ORDER BY e.id
+    ''', (codigo,)).fetchall()
+    conn.close()
+    rows = [dict(r) for r in rows] if rows else []
 
     if not rows:
         return jsonify({'valido': False})
 
     itens = []
     for enc in rows:
-        u = enc.get('unidades', {}) if isinstance(enc.get('unidades'), dict) else enc
-        unidade_label = f"{u.get('bloco') or ''} {u.get('numero')}".strip()
-        foto = enc.get('foto_url') or enc.get('foto_path') or ''
+        unidade_label = f"{enc.get('bloco') or ''} {enc.get('numero')}".strip()
+        foto = enc.get('foto_path') or ''
         itens.append({
             'id': enc.get('id'),
             'unidade': unidade_label,
-            'nome': u.get('nome_residente') or enc.get('nome_residente'),
+            'nome': enc.get('nome_residente'),
             'descricao': enc.get('descricao') or 'Sem descrição',
             'data_recebimento': str(enc.get('data_recebimento', ''))[:16],
             'foto': foto
@@ -956,14 +715,7 @@ def verificar_codigo():
 
 @app.route('/api/moradores/<int:unidade_id>')
 def api_moradores(unidade_id):
-    """Retorna moradores de uma unidade (SQLite + Supabase)"""
-    sb = get_supabase()
-    if sb:
-        try:
-            res = sb.table("moradores").select("*").eq("unidade_id", unidade_id).order("principal", desc=True).order("nome").execute()
-            return jsonify(res.data or [])
-        except Exception as e:
-            print("Erro Supabase api_moradores:", e)
+    """Retorna moradores de uma unidade"""
     conn = get_db()
     rows = conn.execute(
         "SELECT * FROM moradores WHERE unidade_id = ? ORDER BY principal DESC, nome",
@@ -984,123 +736,67 @@ def adicionar_morador():
         flash('Nome e telefone são obrigatórios.', 'danger')
         return redirect(url_for('unidades'))
 
-    sb = get_supabase()
-    if sb:
-        try:
-            if principal:
-                sb.table("moradores").update({"principal": 0}).eq("unidade_id", int(unidade_id)).execute()
-            sb.table("moradores").insert({
-                "unidade_id": int(unidade_id), "nome": nome,
-                "telefone": telefone, "principal": principal
-            }).execute()
-            flash('Morador cadastrado!', 'success')
-        except Exception as e:
-            print("Erro Supabase add morador:", e)
-            flash('Erro ao cadastrar morador.', 'danger')
-    else:
-        conn = get_db()
-        try:
-            if principal:
-                conn.execute("UPDATE moradores SET principal=0 WHERE unidade_id=?", (unidade_id,))
-            conn.execute(
-                "INSERT INTO moradores (unidade_id, nome, telefone, principal) VALUES (?,?,?,?)",
-                (unidade_id, nome, telefone, principal)
-            )
-            conn.commit()
-            flash('Morador cadastrado!', 'success')
-        except Exception as e:
-            print("Erro SQLite add morador:", e)
-            flash('Erro ao cadastrar morador.', 'danger')
-        finally:
-            conn.close()
+    conn = get_db()
+    try:
+        if principal:
+            conn.execute("UPDATE moradores SET principal=0 WHERE unidade_id=?", (unidade_id,))
+        conn.execute(
+            "INSERT INTO moradores (unidade_id, nome, telefone, principal) VALUES (?,?,?,?)",
+            (unidade_id, nome, telefone, principal)
+        )
+        conn.commit()
+        flash('Morador cadastrado!', 'success')
+    except Exception as e:
+        print("Erro SQLite add morador:", e)
+        flash('Erro ao cadastrar morador.', 'danger')
+    finally:
+        conn.close()
     return redirect(url_for('unidades'))
 
 
 @app.route('/moradores/excluir/<int:morador_id>', methods=['POST'])
 def excluir_morador(morador_id):
-    sb = get_supabase()
-    if sb:
-        try:
-            sb.table("moradores").delete().eq("id", morador_id).execute()
-            flash('Morador removido.', 'success')
-        except Exception as e:
-            print("Erro Supabase excluir morador:", e)
-            flash('Erro ao remover morador.', 'danger')
-    else:
-        conn = get_db()
-        conn.execute("DELETE FROM moradores WHERE id=?", (morador_id,))
-        conn.commit()
-        conn.close()
-        flash('Morador removido.', 'success')
+    conn = get_db()
+    conn.execute("DELETE FROM moradores WHERE id=?", (morador_id,))
+    conn.commit()
+    conn.close()
+    flash('Morador removido.', 'success')
     return redirect(url_for('unidades'))
 
 
 @app.route('/moradores/principal/<int:morador_id>', methods=['POST'])
 def definir_principal(morador_id):
     unidade_id = request.form.get('unidade_id', '').strip()
-    sb = get_supabase()
-    if sb:
-        try:
-            sb.table("moradores").update({"principal": 0}).eq("unidade_id", int(unidade_id)).execute()
-            sb.table("moradores").update({"principal": 1}).eq("id", morador_id).execute()
-        except Exception as e:
-            print("Erro Supabase principal morador:", e)
-    else:
-        conn = get_db()
-        conn.execute("UPDATE moradores SET principal=0 WHERE unidade_id=?", (unidade_id,))
-        conn.execute("UPDATE moradores SET principal=1 WHERE id=?", (morador_id,))
-        conn.commit()
-        conn.close()
+    conn = get_db()
+    conn.execute("UPDATE moradores SET principal=0 WHERE unidade_id=?", (unidade_id,))
+    conn.execute("UPDATE moradores SET principal=1 WHERE id=?", (morador_id,))
+    conn.commit()
+    conn.close()
     flash('Morador principal atualizado.', 'success')
     return redirect(url_for('unidades'))
 
 
 @app.route('/unidades')
 def unidades():
-    sb = get_supabase()
-    if sb:
-        try:
-            u_res = sb.table("unidades").select("*").order("bloco").order("numero").execute()
-            lista = u_res.data or []
-
-            p_res = sb.table("encomendas").select("unidade_id").eq("status", "pendente").execute()
-            pend_counts = {}
-            for p in (p_res.data or []):
-                uid = p["unidade_id"]
-                pend_counts[uid] = pend_counts.get(uid, 0) + 1
-        except Exception as e:
-            print("Erro Supabase unidades:", e)
-            lista = []
-            pend_counts = {}
-    else:
-        conn = get_db()
-        lista = conn.execute("SELECT * FROM unidades ORDER BY bloco, numero").fetchall()
-        pendentes = conn.execute('''
-            SELECT unidade_id, COUNT(*) as qtd
-            FROM encomendas
-            WHERE status = 'pendente'
-            GROUP BY unidade_id
-        ''').fetchall()
-        pend_counts = {p['unidade_id']: p['qtd'] for p in pendentes}
-        conn.close()
+    conn = get_db()
+    lista = conn.execute("SELECT * FROM unidades ORDER BY bloco, numero").fetchall()
+    pendentes = conn.execute('''
+        SELECT unidade_id, COUNT(*) as qtd
+        FROM encomendas
+        WHERE status = 'pendente'
+        GROUP BY unidade_id
+    ''').fetchall()
+    pend_counts = {p['unidade_id']: p['qtd'] for p in pendentes}
+    conn.close()
 
     # Carrega moradores agrupados por unidade_id
     moradores_map = {}
-    sb2 = get_supabase()
-    if sb2:
-        try:
-            mr = sb2.table("moradores").select("*").order("principal", desc=True).order("nome").execute()
-            for m in (mr.data or []):
-                moradores_map.setdefault(m['unidade_id'], []).append(m)
-        except Exception as e:
-            print("Erro Supabase moradores:", e)
-    else:
-        conn2 = get_db()
-        rows = conn2.execute("SELECT * FROM moradores ORDER BY principal DESC, nome").fetchall()
-        conn2.close()
-        for m in rows:
-            m = dict(m)
-            moradores_map.setdefault(m['unidade_id'], []).append(m)
+    conn2 = get_db()
+    rows = conn2.execute("SELECT * FROM moradores ORDER BY principal DESC, nome").fetchall()
+    conn2.close()
+    for m in rows:
+        m = dict(m)
+        moradores_map.setdefault(m['unidade_id'], []).append(m)
     return render_template('unidades.html', unidades=lista, pend_map=pend_counts, moradores_map=moradores_map)
 
 
@@ -1115,47 +811,24 @@ def adicionar_unidade():
         flash('Número da unidade e telefone são obrigatórios.', 'danger')
         return redirect(url_for('unidades'))
 
-    sb = get_supabase()
-    if sb:
-        try:
-            # Verifica duplicado
-            existe = sb.table("unidades").select("id").eq("numero", numero).execute()
-            if existe.data:
-                flash('Já existe uma unidade com esse número.', 'danger')
-                return redirect(url_for('unidades'))
-
-            sb.table("unidades").insert({
-                "numero": numero,
-                "telefone": telefone,
-                "nome_residente": nome or None,
-                "bloco": bloco
-            }).execute()
+    conn = get_db()
+    try:
+        # Verifica duplicado
+        existe = conn.execute("SELECT id FROM unidades WHERE numero = ?", (numero,)).fetchone()
+        if existe:
+            flash('Já existe uma unidade com esse número.', 'danger')
+        else:
+            conn.execute(
+                "INSERT INTO unidades (numero, telefone, nome_residente, bloco) VALUES (?, ?, ?, ?)",
+                (numero, telefone, nome or None, bloco)
+            )
+            conn.commit()
             flash('Unidade cadastrada com sucesso!', 'success')
-        except Exception as e:
-            print("Erro Supabase add unidade:", str(e)[:500])
-            if "permission" in str(e).lower() or "policy" in str(e).lower() or "403" in str(e):
-                flash('Erro de permissão no Supabase (verifique RLS e políticas).', 'danger')
-            else:
-                flash('Erro no banco nuvem ao cadastrar a unidade.', 'danger')
-    else:
-        conn = get_db()
-        try:
-            # Verifica duplicado
-            existe = conn.execute("SELECT id FROM unidades WHERE numero = ?", (numero,)).fetchone()
-            if existe:
-                flash('Já existe uma unidade com esse número.', 'danger')
-            else:
-                conn.execute(
-                    "INSERT INTO unidades (numero, telefone, nome_residente, bloco) VALUES (?, ?, ?, ?)",
-                    (numero, telefone, nome or None, bloco)
-                )
-                conn.commit()
-                flash('Unidade cadastrada com sucesso!', 'success')
-        except Exception as e:
-            print("Erro SQLite add unidade:", e)
-            flash('Erro ao cadastrar a unidade.', 'danger')
-        finally:
-            conn.close()
+    except Exception as e:
+        print("Erro SQLite add unidade:", e)
+        flash('Erro ao cadastrar a unidade.', 'danger')
+    finally:
+        conn.close()
 
     return redirect(url_for('unidades'))
 
@@ -1171,83 +844,47 @@ def editar_unidade(unidade_id):
         flash('Número da unidade e telefone são obrigatórios.', 'danger')
         return redirect(url_for('unidades'))
 
-    sb = get_supabase()
-    if sb:
-        try:
-            # Verifica se o novo número já existe em outra unidade
-            existe = sb.table("unidades").select("id").eq("numero", numero).neq("id", unidade_id).execute()
-            if existe.data:
-                flash('Já existe outra unidade com esse número.', 'danger')
-                return redirect(url_for('unidades'))
-
-            sb.table("unidades").update({
-                "numero": numero,
-                "telefone": telefone,
-                "nome_residente": nome or None,
-                "bloco": bloco
-            }).eq("id", unidade_id).execute()
+    conn = get_db()
+    try:
+        # Verifica duplicado
+        existe = conn.execute(
+            "SELECT id FROM unidades WHERE numero = ? AND id != ?",
+            (numero, unidade_id)
+        ).fetchone()
+        if existe:
+            flash('Já existe outra unidade com esse número.', 'danger')
+        else:
+            conn.execute('''
+                UPDATE unidades SET numero=?, telefone=?, nome_residente=?, bloco=?
+                WHERE id=?
+            ''', (numero, telefone, nome or None, bloco, unidade_id))
+            conn.commit()
             flash('Unidade atualizada!', 'success')
-        except Exception as e:
-            print("Erro Supabase editar unidade:", e)
-            flash('Erro ao atualizar no banco nuvem.', 'danger')
-    else:
-        conn = get_db()
-        try:
-            # Verifica duplicado
-            existe = conn.execute(
-                "SELECT id FROM unidades WHERE numero = ? AND id != ?",
-                (numero, unidade_id)
-            ).fetchone()
-            if existe:
-                flash('Já existe outra unidade com esse número.', 'danger')
-            else:
-                conn.execute('''
-                    UPDATE unidades SET numero=?, telefone=?, nome_residente=?, bloco=?
-                    WHERE id=?
-                ''', (numero, telefone, nome or None, bloco, unidade_id))
-                conn.commit()
-                flash('Unidade atualizada!', 'success')
-        except Exception as e:
-            print("Erro SQLite editar unidade:", e)
-            flash('Erro ao atualizar.', 'danger')
-        finally:
-            conn.close()
+    except Exception as e:
+        print("Erro SQLite editar unidade:", e)
+        flash('Erro ao atualizar.', 'danger')
+    finally:
+        conn.close()
 
     return redirect(url_for('unidades'))
 
 
 @app.route('/unidades/excluir/<int:unidade_id>', methods=['POST'])
 def excluir_unidade(unidade_id):
-    sb = get_supabase()
-    if sb:
-        try:
-            # Verifica encomendas vinculadas
-            res = sb.table("encomendas").select("id", count="exact").eq("unidade_id", unidade_id).execute()
-            tem = res.count or 0
+    conn = get_db()
+    # Só exclui se não tiver encomendas
+    tem = conn.execute(
+        "SELECT COUNT(*) FROM encomendas WHERE unidade_id = ?", (unidade_id,)
+    ).fetchone()[0]
 
-            if tem > 0:
-                flash('Não é possível excluir: existem encomendas vinculadas a esta unidade.', 'danger')
-            else:
-                sb.table("unidades").delete().eq("id", unidade_id).execute()
-                flash('Unidade removida.', 'success')
-        except Exception as e:
-            print("Erro Supabase excluir unidade:", e)
-            flash('Erro ao excluir no banco nuvem.', 'danger')
+    if tem > 0:
+        flash('Não é possível excluir: existem encomendas vinculadas a esta unidade.', 'danger')
     else:
-        conn = get_db()
-        # Só exclui se não tiver encomendas
-        tem = conn.execute(
-            "SELECT COUNT(*) FROM encomendas WHERE unidade_id = ?", (unidade_id,)
-        ).fetchone()[0]
+        conn.execute("DELETE FROM unidades WHERE id = ?", (unidade_id,))
+        conn.commit()
+        flash('Unidade removida.', 'success')
 
-        if tem > 0:
-            flash('Não é possível excluir: existem encomendas vinculadas a esta unidade.', 'danger')
-        else:
-            conn.execute("DELETE FROM unidades WHERE id = ?", (unidade_id,))
-            conn.commit()
-            flash('Unidade removida.', 'success')
-
-        conn.close()
+    conn.close()
     return redirect(url_for('unidades'))
 
 
@@ -1327,126 +964,66 @@ def importar_unidades():
 
 @app.route('/historico')
 def historico():
-    sb = get_supabase()
     filtro = request.args.get('filtro', '').strip()
     status = request.args.get('status', 'todas')
     encomendas = []
 
-    if sb:
-        try:
-            query = sb.table("encomendas").select("*, unidades!inner(numero, nome_residente, bloco, telefone)")
-            if status == 'pendente':
-                query = query.eq("status", "pendente")
-            elif status == 'entregue':
-                query = query.eq("status", "entregue")
-            res = query.order("data_recebimento", desc=True).execute()
-            encomendas = res.data or []
-
-            # Normalize for template compatibility
-            for e in encomendas:
-                u = e.get("unidades") or {}
-                e["numero"] = u.get("numero")
-                e["nome_residente"] = u.get("nome_residente")
-                e["bloco"] = u.get("bloco")
-                e["telefone"] = u.get("telefone")
-                foto_raw = e.get("foto_url") or e.get("foto_path")
-                if foto_raw:
-                    s = str(foto_raw)
-                    if s.startswith(('http://', 'https://')):
-                        e["foto_path"] = s
-                    elif s.startswith('/foto/'):
-                        e["foto_path"] = s[len('/foto/'):]
-                    else:
-                        e["foto_path"] = s
-                else:
-                    e["foto_path"] = None
-
-            # Filtro client-side (Supabase nao faz OR ilike facil em joins)
-            if filtro:
-                f = filtro.lower()
-                encomendas = [
-                    e for e in encomendas
-                    if f in (e.get("descricao") or '').lower()
-                    or f in (e.get("numero") or '').lower()
-                    or f in (e.get("nome_residente") or '').lower()
-                    or f in (e.get("telefone") or '').lower()
-                ]
-        except Exception as ex:
-            print("Erro Supabase no histórico:", ex)
-            encomendas = []
-    else:
-        conn = get_db()
-        query = '''
-            SELECT e.*, u.numero, u.nome_residente, u.bloco
-            FROM encomendas e
-            JOIN unidades u ON e.unidade_id = u.id
-        '''
-        params = []
-        where = []
-        if filtro:
-            where.append("(u.numero LIKE ? OR u.nome_residente LIKE ? OR e.descricao LIKE ?)")
-            params.extend([f'%{filtro}%'] * 3)
-        if status == 'pendente':
-            where.append("e.status = 'pendente'")
-        elif status == 'entregue':
-            where.append("e.status = 'entregue'")
-        if where:
-            query += " WHERE " + " AND ".join(where)
-        query += " ORDER BY e.data_recebimento DESC"
-        encomendas = conn.execute(query, params).fetchall()
-        conn.close()
+    conn = get_db()
+    query = '''
+        SELECT e.*, u.numero, u.nome_residente, u.bloco
+        FROM encomendas e
+        JOIN unidades u ON e.unidade_id = u.id
+    '''
+    params = []
+    where = []
+    if filtro:
+        where.append("(u.numero LIKE ? OR u.nome_residente LIKE ? OR e.descricao LIKE ?)")
+        params.extend([f'%{filtro}%'] * 3)
+    if status == 'pendente':
+        where.append("e.status = 'pendente'")
+    elif status == 'entregue':
+        where.append("e.status = 'entregue'")
+    if where:
+        query += " WHERE " + " AND ".join(where)
+    query += " ORDER BY e.data_recebimento DESC"
+    encomendas = conn.execute(query, params).fetchall()
+    conn.close()
 
     return render_template('historico.html', encomendas=encomendas, filtro=filtro, status=status)
 
 
 @app.route('/foto/<path:filename>')
 def foto(filename):
-    # If filename is actually a full URL (Supabase), redirect to it
+    # If filename is actually a full URL (R2), redirect to it
     if filename.startswith(('http://', 'https://')):
         return redirect(filename)
-    # Otherwise serve from local uploads (SQLite fallback)
+    # Otherwise serve from local uploads
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
 @app.route('/reenviar/<int:encomenda_id>')
 def reenviar(encomenda_id):
     """Gera novamente o link do WhatsApp para reenvio"""
-    sb = get_supabase()
-    if sb:
-        try:
-            res = sb.table("encomendas").select("*, unidades!inner(numero, nome_residente, bloco, telefone)").eq("id", encomenda_id).execute()
-            row = res.data[0] if res.data else None
-        except Exception as e:
-            print("Erro Supabase reenviar:", e)
-            row = None
-    else:
-        conn = get_db()
-        row = conn.execute('''
-            SELECT e.*, u.numero, u.nome_residente, u.bloco, u.telefone
-            FROM encomendas e
-            JOIN unidades u ON e.unidade_id = u.id
-            WHERE e.id = ?
-        ''', (encomenda_id,)).fetchone()
-        conn.close()
-        if row:
-            row = dict(row)
+    conn = get_db()
+    row = conn.execute('''
+        SELECT e.*, u.numero, u.nome_residente, u.bloco, u.telefone
+        FROM encomendas e
+        JOIN unidades u ON e.unidade_id = u.id
+        WHERE e.id = ?
+    ''', (encomenda_id,)).fetchone()
+    conn.close()
+    if row:
+        row = dict(row)
 
     if not row:
         flash('Encomenda não encontrada.', 'danger')
         return redirect(url_for('index'))
 
-    row = _row_to_dict(row)
-    if row is None:
-        row = {}
+    telefone = limpar_telefone(row.get('telefone'))
+    unidade_label = f"{row.get('bloco') or ''} {row.get('numero')}".strip()
+    nome = row.get('nome_residente') or ''
 
-    telefone = limpar_telefone(row.get('telefone') or (row.get('unidades') or {}).get('telefone'))
-    u = row.get('unidades') or row
-    unidade_label = f"{u.get('bloco') or ''} {u.get('numero')}".strip()
-    nome = u.get('nome_residente') or row.get('nome_residente') or ''
-
-    foto = row.get('foto_url') or row.get('foto_path')
-    if not foto and isinstance(row.get('unidades'), dict):
-        foto = row.get('unidades').get('foto_url') or row.get('unidades').get('foto_path')  # unlikely
+    foto = row.get('foto_path')
     if foto:
         if not str(foto).startswith('http'):
             try:
@@ -1482,15 +1059,6 @@ def reenviar(encomenda_id):
 
 @app.route('/api/unidades')
 def api_unidades():
-    sb = get_supabase()
-    if sb:
-        try:
-            res = sb.table("unidades").select("id, numero, nome_residente, bloco").order("bloco").order("numero").execute()
-            unidades = res.data or []
-            return jsonify(unidades)
-        except Exception as e:
-            print("Erro Supabase api/unidades:", e)
-    # fallback
     conn = get_db()
     unidades = conn.execute("SELECT id, numero, nome_residente, bloco FROM unidades ORDER BY bloco, numero").fetchall()
     conn.close()
@@ -1519,16 +1087,11 @@ def logout():
 
 
 if __name__ == '__main__':
-    sb = get_supabase()
-    if not sb:
-        init_db()
+    init_db()
     port = int(os.environ.get('PORT', 5000))
     debug = str(os.environ.get('FLASK_DEBUG', 'false')).lower() in ('1', 'true', 'yes')
     print("\n" + "="*60)
     print(f"  SISTEMA DE ENCOMENDAS - CONDOMÍNIO  |  porta {port}")
-    if sb:
-        print("  ✅ Usando Supabase (dados persistentes)")
-    else:
-        print("  ⚠️  Usando SQLite local (dados serão perdidos em restarts)")
+    print("  ✅ Usando SQLite + Cloudflare R2")
     print("="*60 + "\n")
     app.run(debug=debug, host='0.0.0.0', port=port)

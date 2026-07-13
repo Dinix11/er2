@@ -1,64 +1,53 @@
 # Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
 venv/
-ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
 env/
-.venv/
-
-# Environment variables (never commit secrets)
 .env
-.env.local
-.env.*.local
+*.env.local
+*.env.production
 
-# Local database
+# Banco de dados local
 *.db
-encomendas.db
+*.sqlite
+*.sqlite3
 
-# Uploaded files (use Supabase Storage instead)
-static/uploads/
-*.png
+# Uploads e mídia
+static/uploads/*
+!static/uploads/.gitkeep
 *.jpg
 *.jpeg
-*.gif
+*.png
 *.webp
+*.gif
 
-# But allow PWA icons
-!static/icons/*.png
-!static/icons/*.jpg
-!static/icons/*.jpeg
-!static/icons/*.gif
-!static/icons/*.webp
+# Logs
+*.log
+logs/
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
+# Sistema operacional
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Render / deployment
-render.yaml
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testes
+test_*.py
+*.test.py
+
+# Documentação temporária
+*.md.bak
+
+# Backup e arquivos temporários
+*.bak
+*.tmp
+*.temp

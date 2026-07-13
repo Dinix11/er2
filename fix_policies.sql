@@ -1,0 +1,2 @@
+-- Use este script no SQL Editor do Supabase para liberar uploads no bucket fotos
+-- Nao precisa mais; use a interface do Supabase (aba Policies) ou este SQL conforme sua configuracao

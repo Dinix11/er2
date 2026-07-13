@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: encomendas-mirantes
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        value: setordentregas123
+      - key: PORT
+        value: 5000
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        value: encomendas-fotos
+      - key: STORAGE_LIMIT_GB
+        value: "10"
+      - key: STORAGE_WARNING_THRESHOLD
+        value: "0.80"
