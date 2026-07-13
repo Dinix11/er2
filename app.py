@@ -32,7 +32,7 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 DATABASE = os.path.join(BASE_DIR, 'encomendas.db')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
-app = Flask(__name__, template_folder='templates', static_folder='static')
+app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 app.secret_key = os.environ.get('SECRET_KEY', 'condominio-encomendas-dev-key-2026')
