@@ -1,16 +1,7 @@
-<<<<<<< HEAD
 Flask>=3.0.0
 Pillow>=10.0.0
 python-dotenv>=1.0.0
 boto3>=1.34.0
 requests>=2.31.0
 qrcode[pil]>=7.4.2
-=======
-Flask>=3.0.0
-Pillow>=10.0.0
-python-dotenv>=1.0.0
-boto3>=1.34.0
-requests>=2.31.0
-qrcode[pil]>=7.4.2
->>>>>>> 160b0632a2e300896dbc7978624f212684350ef0
 gunicorn>=21.2.0
