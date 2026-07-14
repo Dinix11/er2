@@ -223,5 +223,24 @@ function abrirAddMorador(unidadeId, unidadeLabel) {
     document.getElementById('addMoradorUnidadeLabel').textContent = unidadeLabel.trim();
     new bootstrap.Modal(document.getElementById('modalAddMorador')).show();
 }
+
+// Abrir modal automaticamente se houver unidade_id na URL
+window.addEventListener('load', () => {
+    const params = new URLSearchParams(window.location.search);
+    const unidadeId = params.get('unidade_id');
+    if (unidadeId) {
+        // Buscar label da unidade
+        fetch(`/api/unidades`)
+            .then(r => r.json())
+            .then(unidades => {
+                const unidade = unidades.find(u => u.id == unidadeId);
+                if (unidade) {
+                    const label = `${unidade.bloco || ''} ${unidade.numero}`.trim();
+                    setTimeout(() => abrirAddMorador(unidadeId, label), 500);
+                }
+            })
+            .catch(err => console.error('Erro ao buscar unidade:', err));
+    }
+});
 </script>
 {% endblock %}
