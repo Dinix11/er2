@@ -674,7 +674,15 @@ def unidades():
     for m in rows:
         m = dict(m)
         moradores_map.setdefault(m['unidade_id'], []).append(m)
-    return render_template('unidades.html', unidades=lista, pend_map=pend_counts, moradores_map=moradores_map)
+    
+    # Busca por unidade
+    busca = request.args.get('busca', '').strip()
+    if busca:
+        lista = [u for u in lista if busca.lower() in (u['numero'] or '').lower() or 
+                 busca.lower() in (u['nome_residente'] or '').lower() or
+                 busca.lower() in (u['bloco'] or '').lower()]
+    
+    return render_template('unidades.html', unidades=lista, pend_map=pend_counts, moradores_map=moradores_map, busca=busca)
 
 
 @app.route('/unidades/adicionar', methods=['POST'])
@@ -747,6 +755,18 @@ def excluir_unidade(unidade_id):
         flash('Unidade removida.', 'success')
     conn.close()
     return redirect(url_for('unidades'))
+
+
+@app.route('/zerar-pendentes', methods=['POST'])
+def zerar_pendentes():
+    """Zera todas as encomendas pendentes"""
+    conn = get_db()
+    qtd = conn.execute("SELECT COUNT(*) FROM encomendas WHERE status = 'pendente'").fetchone()[0]
+    conn.execute("UPDATE encomendas SET status = 'entregue', data_entrega = datetime('now', 'localtime'), entregue_por = 'Limpeza Manual' WHERE status = 'pendente'")
+    conn.commit()
+    conn.close()
+    flash(f'{qtd} encomendas pendentes foram zeradas com sucesso!', 'success')
+    return redirect(url_for('index'))
 
 
 @app.route('/unidades/importar', methods=['GET', 'POST'])
