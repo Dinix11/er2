@@ -37,12 +37,17 @@ def get_r2_client():
             print("⚠️  Cloudflare R2 não configurado. Verifique as variáveis de ambiente.")
             return None
         
+        # Cloudflare R2 usa endpoint S3 compatível
+        # Região deve ser 'auto' para R2
         s3_client = boto3.client(
             's3',
             endpoint_url=R2_ENDPOINT_URL,
             aws_access_key_id=R2_ACCESS_KEY_ID,
             aws_secret_access_key=R2_SECRET_ACCESS_KEY,
-            config=Config(signature_version='s3v4'),
+            config=Config(
+                signature_version='s3v4',
+                s3={'addressing_style': 'path'}  # Usar path-style URLs
+            ),
             region_name='auto'
         )
     return s3_client

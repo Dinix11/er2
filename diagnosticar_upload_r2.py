@@ -21,6 +21,7 @@ r2_account = os.getenv('R2_ACCOUNT_ID')
 r2_key = os.getenv('R2_ACCESS_KEY_ID')
 r2_secret = os.getenv('R2_SECRET_ACCESS_KEY')
 r2_bucket = os.getenv('R2_BUCKET_NAME')
+R2_ENDPOINT_URL = f"https://{r2_account}.r2.cloudflarestorage.com" if r2_account else None
 
 print(f"R2_ACCOUNT_ID: {'✅ Presente' if r2_account else '❌ AUSENTE'} | {str(r2_account)[:30] if r2_account else 'None'}")
 print(f"R2_ACCESS_KEY_ID: {'✅ Presente' if r2_key else '❌ AUSENTE'} | {str(r2_key)[:20] if r2_key else 'None'}")
@@ -62,12 +63,22 @@ print("-" * 60)
 
 try:
     from botocore.client import Config
-    from cloudflare_r2 import get_r2_client
     
-    client = get_r2_client()
-    if not client:
-        print("❌ ERRO: Não foi possível criar cliente R2")
-        sys.exit(1)
+    print(f"\n   Criando cliente com:")
+    print(f"   - Endpoint: {R2_ENDPOINT_URL}")
+    print(f"   - Access Key: {r2_key[:20]}...")
+    print(f"   - Secret Key: {r2_secret[:20]}...")
+    print(f"   - Bucket: {r2_bucket}")
+    
+    # Criar cliente diretamente para debug
+    client = boto3.client(
+        's3',
+        endpoint_url=R2_ENDPOINT_URL,
+        aws_access_key_id=r2_key,
+        aws_secret_access_key=r2_secret,
+        config=Config(signature_version='s3v4'),
+        region_name='auto'
+    )
     
     print("✅ Cliente R2 criado com sucesso")
     
@@ -76,6 +87,38 @@ try:
     print("-" * 60)
     
     try:
+        print(f"   Endpoint: {client._endpoint}")
+        print(f"   Region: {client.meta.region_name}")
+        
+        # Testar listagem de buckets primeiro
+        print("\n   Testando listagem de buckets...")
+        try:
+            buckets = client.list_buckets()
+            print(f"   ✅ Conexão OK! Buckets encontrados: {len(buckets.get('Buckets', []))}")
+            if buckets.get('Buckets'):
+                for bucket in buckets['Buckets'][:5]:
+                    print(f"      - {bucket['Name']}")
+        except Exception as e:
+            print(f"   ⚠️  Erro ao listar buckets: {e}")
+        
+        # Verificar se o bucket existe
+        print(f"\n   Verificando se bucket '{r2_bucket}' existe...")
+        try:
+            client.head_bucket(Bucket=r2_bucket)
+            print(f"   ✅ Bucket '{r2_bucket}' existe")
+        except Exception as e:
+            print(f"   ❌ Bucket '{r2_bucket}' não encontrado ou sem permissão: {e}")
+            print(f"\n   ⚠️  AÇÃO NECESSÁRIA:")
+            print(f"   1. Acesse https://dash.cloudflare.com")
+            print(f"   2. Vá em R2 > Overview")
+            print(f"   3. Clique em 'Create bucket'")
+            print(f"   4. Nome: {r2_bucket}")
+            print(f"   5. Escolha a localização mais próxima")
+            print(f"   6. Clique em 'Create bucket'")
+            print(f"\n   Após criar o bucket, execute este diagnóstico novamente.")
+            sys.exit(1)
+        
+        print(f"\n   Tentando acessar objetos do bucket: {r2_bucket}")
         response = client.list_objects_v2(Bucket=r2_bucket, MaxKeys=5)
         print(f"✅ Bucket '{r2_bucket}' acessível")
         
