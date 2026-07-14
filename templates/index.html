@@ -101,12 +101,10 @@
 
                     {# Botão cadastrar morador (FORA do formulário de encomenda) #}
                     <div id="btn-cadastrar-morador-container" class="mb-3 d-none">
-                        <form method="POST" action="/cadastro-rapido" class="d-inline">
-                            <input type="hidden" name="unidade_id" value="{{ unidade_id_fixo or '' }}">
-                            <button type="submit" class="btn btn-warning btn-sm">
-                                <i class="bi bi-person-plus me-1"></i> Cadastrar Morador
-                            </button>
-                        </form>
+                        <a href="/unidades?unidade_id={{ unidade_id_fixo or '' }}#form-morador" 
+                           class="btn btn-warning btn-sm">
+                            <i class="bi bi-person-plus me-1"></i> Cadastrar Morador
+                        </a>
                         <small class="text-muted ms-2">Esta unidade não tem moradores cadastrados</small>
                     </div>
 
