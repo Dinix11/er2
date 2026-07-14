@@ -97,17 +97,17 @@
                             <option value="">Carregando...</option>
                         </select>
                         <div class="form-text">O aviso no WhatsApp será enviado para o número do morador selecionado.</div>
-                        
-                        {# Botão cadastrar morador (aparece quando não há moradores) #}
-                        <div id="btn-cadastrar-morador-container" class="mt-2 d-none">
-                            <form method="POST" action="/cadastro-rapido" class="d-inline">
-                                <input type="hidden" name="unidade_id" value="{{ unidade_id_fixo or '' }}">
-                                <button type="submit" class="btn btn-warning btn-sm">
-                                    <i class="bi bi-person-plus me-1"></i> Cadastrar Morador
-                                </button>
-                            </form>
-                            <small class="text-muted ms-2">Esta unidade não tem moradores cadastrados</small>
-                        </div>
+                    </div>
+
+                    {# Botão cadastrar morador (FORA do formulário de encomenda) #}
+                    <div id="btn-cadastrar-morador-container" class="mb-3 d-none">
+                        <form method="POST" action="/cadastro-rapido" class="d-inline">
+                            <input type="hidden" name="unidade_id" value="{{ unidade_id_fixo or '' }}">
+                            <button type="submit" class="btn btn-warning btn-sm">
+                                <i class="bi bi-person-plus me-1"></i> Cadastrar Morador
+                            </button>
+                        </form>
+                        <small class="text-muted ms-2">Esta unidade não tem moradores cadastrados</small>
                     </div>
 
                     <hr class="my-3">
