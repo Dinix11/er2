@@ -337,18 +337,8 @@ def index():
 
     try:
         conn = get_db()
-        pendentes = conn.execute("SELECT COUNT(*) FROM encomendas WHERE status = 'pendente'").fetchone()[0]
-        entregues_hoje = conn.execute("SELECT COUNT(*) FROM encomendas WHERE status = 'entregue' AND date(data_entrega) = date('now', 'localtime')").fetchone()[0]
-        unidades = conn.execute("SELECT * FROM unidades ORDER BY bloco, numero").fetchall()
-        pendentes_lista = conn.execute('''
-            SELECT e.*, u.numero, u.nome_residente, u.bloco
-            FROM encomendas e
-            JOIN unidades u ON e.unidade_id = u.id
-            WHERE e.status = 'pendente'
-            ORDER BY e.data_recebimento DESC
-        ''').fetchall()
         
-        # Verificar se há encomendas órfãs (sem unidade)
+        # PRIMEIRO: Limpar encomendas órfãs (sem unidade)
         orfas = conn.execute('''
             SELECT COUNT(*) FROM encomendas e
             LEFT JOIN unidades u ON e.unidade_id = u.id
@@ -367,6 +357,18 @@ def index():
             ''')
             conn.commit()
             print(f"[LIMPEZA] {orfas} encomendas órfãs removidas")
+        
+        # DEPOIS: Contar e listar apenas encomendas válidas
+        pendentes = conn.execute("SELECT COUNT(*) FROM encomendas WHERE status = 'pendente'").fetchone()[0]
+        entregues_hoje = conn.execute("SELECT COUNT(*) FROM encomendas WHERE status = 'entregue' AND date(data_entrega) = date('now', 'localtime')").fetchone()[0]
+        unidades = conn.execute("SELECT * FROM unidades ORDER BY bloco, numero").fetchall()
+        pendentes_lista = conn.execute('''
+            SELECT e.*, u.numero, u.nome_residente, u.bloco
+            FROM encomendas e
+            JOIN unidades u ON e.unidade_id = u.id
+            WHERE e.status = 'pendente'
+            ORDER BY e.data_recebimento DESC
+        ''').fetchall()
         ultimas = conn.execute('''
             SELECT e.*, u.numero, u.nome_residente, u.bloco
             FROM encomendas e
