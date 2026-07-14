@@ -111,6 +111,7 @@ def upload_foto_r2(file, filename: str) -> str | None:
         
         verificar_espaco_bucket()
         
+        print(f"[R2] ✅ Upload bem-sucedido: {path}")
         return proxy_url
         
     except Exception as e:
