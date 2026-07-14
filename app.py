@@ -483,23 +483,9 @@ def receber():
         for i, item in enumerate(itens_descricao, 1):
             fu = item.get('foto_url')
             if fu:
-                # Se for URL do R2 (http/https), usar diretamente
-                if str(fu).startswith('http'):
-                    fotos_links.append(f"Foto {i}: {fu}")
-                else:
-                    # Se for caminho local, criar URL completa
-                    # A foto_url já vem como "/foto/nome.jpg" do banco
-                    try:
-                        base = request.url_root.rstrip('/')
-                        # Se já começa com /foto/, usar diretamente
-                        if fu.startswith('/foto/'):
-                            fu = base + fu
-                        else:
-                            # Caso raro: se não tiver o prefixo, adicionar
-                            fu = base + '/foto/' + fu.lstrip('/')
-                        fotos_links.append(f"Foto {i}: {fu}")
-                    except:
-                        fotos_links.append(f"Foto {i}: {fu}")
+                # A foto_url já é uma URL completa (inclui domínio do Render)
+                # Usar diretamente
+                fotos_links.append(f"Foto {i}: {fu}")
             else:
                 fotos_links.append(f"Foto {i}: sem foto")
 
