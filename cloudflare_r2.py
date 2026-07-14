@@ -60,6 +60,12 @@ def upload_foto_r2(file, filename: str) -> str | None:
         return None
     
     try:
+        # Debug: mostrar credenciais usadas
+        print(f"[R2 UPLOAD] Usando credenciais:")
+        print(f"[R2 UPLOAD]   Account: {R2_ACCOUNT_ID}")
+        print(f"[R2 UPLOAD]   Access Key: {R2_ACCESS_KEY_ID[:20]}...")
+        print(f"[R2 UPLOAD]   Bucket: {R2_BUCKET_NAME}")
+        print(f"[R2 UPLOAD]   Endpoint: {R2_ENDPOINT_URL}")
         from PIL import Image
         import io
         
