@@ -605,6 +605,15 @@ def api_moradores(unidade_id):
     return jsonify([dict(r) for r in rows])
 
 
+@app.route('/api/unidade/<int:unidade_id>/tem-moradores')
+def api_unidade_tem_moradores(unidade_id):
+    """Verifica se unidade tem moradores cadastrados"""
+    conn = get_db()
+    qtd = conn.execute("SELECT COUNT(*) FROM moradores WHERE unidade_id = ?", (unidade_id,)).fetchone()[0]
+    conn.close()
+    return jsonify({'tem_moradores': qtd > 0, 'quantidade': qtd})
+
+
 @app.route('/moradores/adicionar', methods=['POST'])
 def adicionar_morador():
     unidade_id = request.form.get('unidade_id', '').strip()
