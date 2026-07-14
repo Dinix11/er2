@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Python
 venv/
 __pycache__/
@@ -51,58 +50,4 @@ test_*.py
 # Backup e arquivos temporários
 *.bak
 *.tmp
-=======
-# Python
-venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-.env
-*.env.local
-*.env.production
-
-# Banco de dados local
-*.db
-*.sqlite
-*.sqlite3
-
-# Uploads e mídia
-static/uploads/*
-!static/uploads/.gitkeep
-*.jpg
-*.jpeg
-*.png
-*.webp
-*.gif
-
-# Logs
-*.log
-logs/
-
-# Sistema operacional
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Testes
-test_*.py
-*.test.py
-
-# Documentação temporária
-*.md.bak
-
-# Backup e arquivos temporários
-*.bak
-*.tmp
->>>>>>> 160b0632a2e300896dbc7978624f212684350ef0
 *.temp

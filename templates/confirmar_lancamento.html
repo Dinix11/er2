@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Confirmar Lançamento de Encomenda{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3>📦 Confirmar Lançamento de Encomenda</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Informações do Morador -->
+                    <div class="alert alert-info">
+                        <h5>👤 Morador Cadastrado:</h5>
+                        <p><strong>Nome:</strong> {{ morador.nome }}</p>
+                        <p><strong>WhatsApp:</strong> {{ morador.telefone }}</p>
+                        <p><strong>Unidade:</strong> Bloco {{ morador.bloco }} - Unidade {{ morador.numero }}</p>
+                    </div>
+
+                    <!-- Botões de Ação -->
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="{{ url_for('receber') }}?unidade_id={{ morador.unidade_id }}&morador_id={{ morador.id }}" 
+                           class="btn btn-success btn-lg">
+                            ✅ Sim, Lançar Encomenda
+                        </a>
+                        
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary btn-lg">
+                            ❌ Não, Voltar ao Início
+                        </a>
+                    </div>
+
+                    <hr>
+
+                    <!-- Informações Adicionais -->
+                    <div class="alert alert-warning">
+                        <h5>ℹ️ Informações:</h5>
+                        <ul>
+                            <li>Ao clicar em "Sim, Lançar Encomenda", você será redirecionado para a página de recebimento</li>
+                            <li>A unidade do morador já será pré-selecionada</li>
+                            <li>Você precisará adicionar a foto e descrição da encomenda</li>
+                            <li>O WhatsApp do morador será usado automaticamente para envio da notificação</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

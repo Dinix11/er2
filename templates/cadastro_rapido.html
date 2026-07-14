@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}Cadastro Rápido de Morador{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3>👤 Cadastro Rápido de Morador</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Busca -->
+                    <form method="GET" action="{{ url_for('cadastro_rapido') }}" class="mb-4">
+                        <div class="input-group">
+                            <input type="text" 
+                                   name="q" 
+                                   class="form-control" 
+                                   placeholder="Buscar por nome ou WhatsApp..." 
+                                   value="{{ termo }}"
+                                   autofocus>
+                            <button type="submit" class="btn btn-primary">
+                                🔍 Buscar
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Resultados da busca -->
+                    {% if resultados %}
+                    <div class="alert alert-info">
+                        <strong>Resultados encontrados:</strong> {{ resultados|length }} morador(es)
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>WhatsApp</th>
+                                    <th>Unidade</th>
+                                    <th>Bloco</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for morador in resultados %}
+                                <tr>
+                                    <td>{{ morador.nome }}</td>
+                                    <td>{{ morador.telefone }}</td>
+                                    <td>{{ morador.numero }}</td>
+                                    <td>{{ morador.bloco }}</td>
+                                    <td>
+                                        <a href="{{ url_for('confirmar_lancamento', morador_id=morador.id) }}" 
+                                           class="btn btn-sm btn-success">
+                                            📦 Lançar Encomenda
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    <!-- Formulário de cadastro -->
+                    <hr>
+                    <h4>Cadastrar Novo Morador</h4>
+                    <form method="POST" action="{{ url_for('cadastro_rapido') }}">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Nome Completo *</label>
+                                <input type="text" 
+                                       name="nome" 
+                                       class="form-control" 
+                                       required
+                                       placeholder="Ex: João Silva">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>WhatsApp *</label>
+                                <input type="text" 
+                                       name="telefone" 
+                                       class="form-control" 
+                                       required
+                                       placeholder="Ex: 5511999999999"
+                                       oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Unidade *</label>
+                                <select name="unidade_id" class="form-select" required>
+                                    <option value="">Selecione...</option>
+                                    {% for unidade in unidades %}
+                                    <option value="{{ unidade.id }}">
+                                        Bloco {{ unidade.bloco }} - Unidade {{ unidade.numero }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="d-block">Morador Principal</label>
+                                <input type="checkbox" 
+                                       name="principal" 
+                                       class="form-check-input"
+                                       checked>
+                                <span class="text-muted">Este é o morador principal da unidade</span>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            ✅ Cadastrar Morador
+                        </button>
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                            ❌ Cancelar
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
