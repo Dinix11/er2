@@ -42,7 +42,9 @@ HEAD
 
 **Exposed Headers (Headers expostos):**
 ```
-ETag
+Content-Type
+Content-Length
+Last-Modified
 ```
 
 **Max Age (Tempo de cache):**
@@ -63,7 +65,7 @@ Se preferir configurar via API ou Rclone, use este JSON:
     "AllowedOrigins": ["*"],
     "AllowedMethods": ["GET", "HEAD"],
     "AllowedHeaders": ["*"],
-    "ExposedHeaders": ["ETag"],
+    "ExposedHeaders": ["Content-Type", "Content-Length", "Last-Modified"],
     "MaxAgeSeconds": 3600
   }
 ]
