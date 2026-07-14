@@ -67,6 +67,9 @@
                     <hr>
                     <h4>Cadastrar Novo Morador</h4>
                     <form method="POST" action="{{ url_for('cadastro_rapido') }}">
+                        {% if request.args.get('unidade_id') %}
+                        <input type="hidden" name="unidade_id" value="{{ request.args.get('unidade_id') }}">
+                        {% endif %}
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label>Nome Completo *</label>
@@ -86,6 +89,7 @@
                                        oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                             </div>
                         </div>
+                        {% if not request.args.get('unidade_id') %}
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label>Unidade *</label>
@@ -98,6 +102,8 @@
                                     {% endfor %}
                                 </select>
                             </div>
+                        </div>
+                        {% endif %}
                             <div class="col-md-6 mb-3">
                                 <label class="d-block">Morador Principal</label>
                                 <input type="checkbox" 
