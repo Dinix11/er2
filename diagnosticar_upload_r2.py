@@ -105,17 +105,28 @@ try:
         print(f"\n   Verificando se bucket '{r2_bucket}' existe...")
         try:
             client.head_bucket(Bucket=r2_bucket)
-            print(f"   ✅ Bucket '{r2_bucket}' existe")
+            print(f"   ✅ Bucket '{r2_bucket}' existe e é acessível")
         except Exception as e:
-            print(f"   ❌ Bucket '{r2_bucket}' não encontrado ou sem permissão: {e}")
-            print(f"\n   ⚠️  AÇÃO NECESSÁRIA:")
-            print(f"   1. Acesse https://dash.cloudflare.com")
-            print(f"   2. Vá em R2 > Overview")
-            print(f"   3. Clique em 'Create bucket'")
-            print(f"   4. Nome: {r2_bucket}")
-            print(f"   5. Escolha a localização mais próxima")
-            print(f"   6. Clique em 'Create bucket'")
-            print(f"\n   Após criar o bucket, execute este diagnóstico novamente.")
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            if error_code == '404':
+                print(f"   ❌ Bucket '{r2_bucket}' NÃO EXISTE")
+                print(f"\n   ⚠️  AÇÃO NECESSÁRIA:")
+                print(f"   1. Acesse https://dash.cloudflare.com")
+                print(f"   2. Vá em R2 > Overview")
+                print(f"   3. Clique em 'Create bucket'")
+                print(f"   4. Nome: {r2_bucket}")
+                print(f"   5. Escolha a localização mais próxima")
+                print(f"   6. Clique em 'Create bucket'")
+                print(f"\n   Após criar o bucket, execute este diagnóstico novamente.")
+            elif error_code == '403':
+                print(f"   ❌ Bucket '{r2_bucket}' existe mas SEM PERMISSÃO")
+                print(f"\n   ⚠️  PROBLEMA: O token não tem permissão para acessar este bucket")
+                print(f"   SOLUÇÕES:")
+                print(f"   1. Verifique se o bucket está na conta correta (Account ID: {r2_account})")
+                print(f"   2. Verifique se o token tem permissões de 'Object Read & Write'")
+                print(f"   3. Tente criar um novo token com permissões totais")
+            else:
+                print(f"   ❌ Erro ao acessar bucket: {e}")
             sys.exit(1)
         
         print(f"\n   Tentando acessar objetos do bucket: {r2_bucket}")
