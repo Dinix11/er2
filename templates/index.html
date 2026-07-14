@@ -97,6 +97,15 @@
                             <option value="">Carregando...</option>
                         </select>
                         <div class="form-text">O aviso no WhatsApp será enviado para o número do morador selecionado.</div>
+                        
+                        {# Botão cadastrar morador (aparece quando não há moradores) #}
+                        <div id="btn-cadastrar-morador-container" class="mt-2 d-none">
+                            <a href="/cadastro-rapido?unidade_id={{ unidade_id_fixo or '' }}" 
+                               class="btn btn-warning btn-sm">
+                                <i class="bi bi-person-plus me-1"></i> Cadastrar Morador
+                            </a>
+                            <small class="text-muted ms-2">Esta unidade não tem moradores cadastrados</small>
+                        </div>
                     </div>
 
                     <hr class="my-3">
@@ -283,6 +292,20 @@ async function confirmarUnidade() {
         }
     } catch {
         selectMorador.innerHTML = '<option value="">Erro ao carregar moradores</option>';
+    }
+
+    // Verifica se unidade tem moradores e mostra botão de cadastro
+    try {
+        const resCheck = await fetch(`/api/unidade/${unidadeId}/tem-moradores`);
+        const data = await resCheck.json();
+        const btnContainer = document.getElementById('btn-cadastrar-morador-container');
+        if (!data.tem_moradores) {
+            btnContainer.classList.remove('d-none');
+        } else {
+            btnContainer.classList.add('d-none');
+        }
+    } catch (e) {
+        console.error('Erro ao verificar moradores:', e);
     }
 
     document.getElementById('card-selecionar-unidade').classList.add('d-none');
