@@ -475,13 +475,19 @@ def receber():
         for i, item in enumerate(itens_descricao, 1):
             fu = item.get('foto_url')
             if fu:
-                if not str(fu).startswith('http'):
+                # Se for URL do R2 (http/https), usar diretamente
+                if str(fu).startswith('http'):
+                    fotos_links.append(f"Foto {i}: {fu}")
+                else:
+                    # Se for caminho local, criar URL completa
                     try:
                         base = request.url_root.rstrip('/')
-                        fu = base + (fu if fu.startswith('/') else '/' + fu)
+                        # Garantir que não há barras duplicadas
+                        foto_path = fu if fu.startswith('/') else '/' + fu
+                        fu = base + foto_path
+                        fotos_links.append(f"Foto {i}: {fu}")
                     except:
-                        pass
-                fotos_links.append(f"Foto {i}: {fu}")
+                        fotos_links.append(f"Foto {i}: {fu}")
             else:
                 fotos_links.append(f"Foto {i}: sem foto")
 
