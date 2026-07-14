@@ -105,11 +105,13 @@ def upload_foto_r2(file, filename: str) -> str | None:
             }
         )
         
-        public_url = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com/{R2_BUCKET_NAME}/{path}"
+        # Retornar URL do proxy Flask ao invés da URL direta do R2
+        # Isso adiciona CORS automaticamente
+        proxy_url = f"/foto/https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com/{R2_BUCKET_NAME}/{path}"
         
         verificar_espaco_bucket()
         
-        return public_url
+        return proxy_url
         
     except Exception as e:
         print(f"[R2] Erro no upload: {repr(e)}")
