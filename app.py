@@ -347,6 +347,26 @@ def index():
             WHERE e.status = 'pendente'
             ORDER BY e.data_recebimento DESC
         ''').fetchall()
+        
+        # Verificar se há encomendas órfãs (sem unidade)
+        orfas = conn.execute('''
+            SELECT COUNT(*) FROM encomendas e
+            LEFT JOIN unidades u ON e.unidade_id = u.id
+            WHERE e.status = 'pendente' AND u.id IS NULL
+        ''').fetchone()[0]
+        
+        if orfas > 0:
+            print(f"[LIMPEZA] Encontradas {orfas} encomendas órfãs. Removendo...")
+            conn.execute('''
+                DELETE FROM encomendas 
+                WHERE id IN (
+                    SELECT e.id FROM encomendas e
+                    LEFT JOIN unidades u ON e.unidade_id = u.id
+                    WHERE e.status = 'pendente' AND u.id IS NULL
+                )
+            ''')
+            conn.commit()
+            print(f"[LIMPEZA] {orfas} encomendas órfãs removidas")
         ultimas = conn.execute('''
             SELECT e.*, u.numero, u.nome_residente, u.bloco
             FROM encomendas e
