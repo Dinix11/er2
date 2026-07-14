@@ -55,22 +55,6 @@ Last-Modified
 ### 4. Salve a Configuração
 - Clique em **"Save"**
 
-## Configuração JSON (Alternativa)
-
-Se preferir configurar via API ou Rclone, use este JSON:
-
-```json
-[
-  {
-    "AllowedOrigins": ["*"],
-    "AllowedMethods": ["GET", "HEAD"],
-    "AllowedHeaders": ["*"],
-    "ExposedHeaders": ["Content-Type", "Content-Length", "Last-Modified"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
-
 ## ⚠️ Segurança
 
 ### Opção 1: Permitir todos os domínios (Mais simples)
