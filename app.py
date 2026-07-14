@@ -845,8 +845,34 @@ def historico():
 
 @app.route('/foto/<path:filename>')
 def foto(filename):
+    """Serve fotos do R2 ou armazenamento local"""
+    # Se for URL do R2, fazer proxy
     if filename.startswith(('http://', 'https://')):
-        return redirect(filename)
+        try:
+            import requests
+            from flask import Response
+            
+            # Fazer requisição ao R2
+            r2_response = requests.get(filename, timeout=10)
+            
+            # Retornar com os headers corretos
+            response = Response(
+                r2_response.content,
+                status=r2_response.status_code,
+                content_type=r2_response.headers.get('Content-Type', 'image/jpeg')
+            )
+            
+            # Adicionar headers CORS
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD'
+            response.headers['Access-Control-Allow-Headers'] = '*'
+            
+            return response
+        except Exception as e:
+            print(f"[PROXY] Erro ao buscar foto do R2: {e}")
+            return "Erro ao carregar imagem", 404
+    
+    # Se for caminho local
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
