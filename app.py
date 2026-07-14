@@ -409,6 +409,7 @@ def receber():
 
         foto_url = upload_foto_r2(foto, safe_name)
         if not foto_url:
+            # Fallback: salvar localmente
             caminho = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
             foto.seek(0)
             foto.save(caminho)
@@ -480,11 +481,15 @@ def receber():
                     fotos_links.append(f"Foto {i}: {fu}")
                 else:
                     # Se for caminho local, criar URL completa
+                    # A foto_url já vem como "/foto/nome.jpg" do banco
                     try:
                         base = request.url_root.rstrip('/')
-                        # Garantir que não há barras duplicadas
-                        foto_path = fu if fu.startswith('/') else '/' + fu
-                        fu = base + foto_path
+                        # Se já começa com /foto/, usar diretamente
+                        if fu.startswith('/foto/'):
+                            fu = base + fu
+                        else:
+                            # Caso raro: se não tiver o prefixo, adicionar
+                            fu = base + '/foto/' + fu.lstrip('/')
                         fotos_links.append(f"Foto {i}: {fu}")
                     except:
                         fotos_links.append(f"Foto {i}: {fu}")
