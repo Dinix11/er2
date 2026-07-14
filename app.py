@@ -415,6 +415,13 @@ def receber():
             foto.save(caminho)
             foto_url = f"/foto/{safe_name}"
             print(f"[FALLBACK] Foto salva localmente: {safe_name}")
+        else:
+            # Upload R2 bem-sucedido - foto_url é o path do proxy
+            # Completar com domínio do Render para URL absoluta
+            if foto_url.startswith('/'):
+                base_url = request.url_root.rstrip('/')
+                foto_url = base_url + foto_url
+            print(f"[R2] Upload bem-sucedido: {foto_url}")
 
         conn = get_db()
         cur = conn.execute('''
