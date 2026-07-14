@@ -898,6 +898,108 @@ def api_unidades():
     return jsonify([dict(u) for u in unidades])
 
 
+@app.route('/api/buscar-moradores')
+def buscar_moradores():
+    """Busca rápida de moradores por nome ou WhatsApp"""
+    termo = request.args.get('q', '').strip()
+    if len(termo) < 2:
+        return jsonify([])
+    
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT m.*, u.numero, u.bloco 
+        FROM moradores m 
+        JOIN unidades u ON m.unidade_id = u.id 
+        WHERE m.nome LIKE ? OR m.telefone LIKE ?
+        ORDER BY m.principal DESC, m.nome
+        LIMIT 20
+    ''', (f'%{termo}%', f'%{termo}%')).fetchall()
+    conn.close()
+    
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/cadastro-rapido', methods=['GET', 'POST'])
+def cadastro_rapido():
+    """Cadastro rápido de morador com busca"""
+    if request.method == 'POST':
+        nome = request.form.get('nome', '').strip()
+        telefone = limpar_telefone(request.form.get('telefone', '').strip())
+        unidade_id = request.form.get('unidade_id', '').strip()
+        principal = 1 if request.form.get('principal') else 0
+        
+        if not nome or not telefone or not unidade_id:
+            flash('Nome, telefone e unidade são obrigatórios.', 'danger')
+            return redirect(url_for('cadastro_rapido'))
+        
+        conn = get_db()
+        try:
+            if principal:
+                conn.execute("UPDATE moradores SET principal=0 WHERE unidade_id=?", (unidade_id,))
+            conn.execute(
+                "INSERT INTO moradores (unidade_id, nome, telefone, principal) VALUES (?,?,?,?)",
+                (unidade_id, nome, telefone, principal)
+            )
+            conn.commit()
+            morador_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            conn.close()
+            
+            flash('Morador cadastrado com sucesso!', 'success')
+            return redirect(url_for('confirmar_lancamento', morador_id=morador_id))
+            
+        except Exception as e:
+            conn.close()
+            print("Erro SQLite add morador:", e)
+            flash('Erro ao cadastrar morador.', 'danger')
+            return redirect(url_for('cadastro_rapido'))
+    
+    # GET - exibir formulário
+    termo = request.args.get('q', '').strip()
+    resultados = []
+    
+    if termo and len(termo) >= 2:
+        conn = get_db()
+        rows = conn.execute('''
+            SELECT m.*, u.numero, u.bloco 
+            FROM moradores m 
+            JOIN unidades u ON m.unidade_id = u.id 
+            WHERE m.nome LIKE ? OR m.telefone LIKE ?
+            ORDER BY m.principal DESC, m.nome
+            LIMIT 20
+        ''', (f'%{termo}%', f'%{termo}%')).fetchall()
+        conn.close()
+        resultados = [dict(r) for r in rows]
+    
+    conn = get_db()
+    unidades = conn.execute("SELECT * FROM unidades ORDER BY bloco, numero").fetchall()
+    conn.close()
+    
+    return render_template('cadastro_rapido.html', 
+                         resultados=resultados, 
+                         termo=termo,
+                         unidades=unidades)
+
+
+@app.route('/confirmar-lancamento/<int:morador_id>')
+def confirmar_lancamento(morador_id):
+    """Tela de confirmação para lançar encomenda após cadastro"""
+    conn = get_db()
+    morador = conn.execute('''
+        SELECT m.*, u.numero, u.bloco 
+        FROM moradores m 
+        JOIN unidades u ON m.unidade_id = u.id 
+        WHERE m.id = ?
+    ''', (morador_id,)).fetchone()
+    conn.close()
+    
+    if not morador:
+        flash('Morador não encontrado.', 'danger')
+        return redirect(url_for('index'))
+    
+    morador = dict(morador)
+    return render_template('confirmar_lancamento.html', morador=morador)
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
