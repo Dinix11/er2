@@ -30,7 +30,6 @@
                 <tr>
                     <td class="fw-semibold">{{ u.bloco or '' }} {{ u.numero }}</td>
                     <td>
-                        {# Lista de moradores inline #}
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             {% set moradores = moradores_map.get(u.id, []) %}
                             {% for m in moradores %}
@@ -39,8 +38,7 @@
                                 {{ m.nome }}
                                 <span class="text-white-50 small ms-1">{{ m.telefone[-8:] }}</span>
                                 {% if not m.principal %}
-                                <form action="/moradores/principal/{{ m.id }}" method="post" class="d-inline ms-1"
-                                      title="Tornar principal">
+                                <form action="/moradores/principal/{{ m.id }}" method="post" class="d-inline ms-1" title="Tornar principal">
                                     <input type="hidden" name="unidade_id" value="{{ u.id }}">
                                     <button type="submit" class="btn btn-link p-0 text-white" style="line-height:1" title="Tornar principal">
                                         <i class="bi bi-star" style="font-size:.75rem"></i>
@@ -49,8 +47,7 @@
                                 {% else %}
                                 <i class="bi bi-star-fill text-warning ms-1" style="font-size:.7rem" title="Principal"></i>
                                 {% endif %}
-                                <form action="/moradores/excluir/{{ m.id }}" method="post" class="d-inline"
-                                      onsubmit="return confirm('Remover {{ m.nome }}?')">
+                                <form action="/moradores/excluir/{{ m.id }}" method="post" class="d-inline" onsubmit="return confirm('Remover {{ m.nome }}?')">
                                     <button type="submit" class="btn btn-link p-0 text-white-50" style="line-height:1">
                                         <i class="bi bi-x" style="font-size:.9rem"></i>
                                     </button>
@@ -60,10 +57,7 @@
                             <span class="text-muted small">Sem moradores</span>
                             {% endfor %}
 
-                            {# Botão inline para adicionar morador #}
-                            <button class="btn btn-outline-secondary btn-sm"
-                                    onclick="abrirAddMorador({{ u.id }}, '{{ u.bloco or '' }} {{ u.numero }}')"
-                                    title="Adicionar morador">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="abrirAddMorador({{ u.id }}, '{{ u.bloco or '' }} {{ u.numero }}')" title="Adicionar morador">
                                 <i class="bi bi-person-plus"></i>
                             </button>
                         </div>
@@ -77,13 +71,10 @@
                         {% endif %}
                     </td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary"
-                                data-bs-toggle="modal"
-                                data-bs-target="#modalEditar{{ u.id }}">
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditar{{ u.id }}">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <form action="/unidades/excluir/{{ u.id }}" method="post" class="d-inline"
-                              onsubmit="return confirm('Excluir esta unidade e todos os moradores?');">
+                        <form action="/unidades/excluir/{{ u.id }}" method="post" class="d-inline" onsubmit="return confirm('Excluir esta unidade e todos os moradores?');">
                             <button type="submit" class="btn btn-sm btn-outline-danger">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -91,7 +82,6 @@
                     </td>
                 </tr>
 
-                {# Modal Editar Unidade #}
                 <div class="modal fade" id="modalEditar{{ u.id }}" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
@@ -135,7 +125,6 @@
     </div>
 </div>
 
-{# Modal Adicionar Unidade #}
 <div class="modal fade" id="modalAdicionar" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -174,44 +163,46 @@
     </div>
 </div>
 
-{# Modal Adicionar Morador (compartilhado, preenchido por JS) #}
 {% if unidade_id_morador %}
-{% set unidade_morador = unidades | selectattr('id', 'equalto', unidade_id_morador | int) | first %}
-{% set label_morador = (unidade_morador.bloco or '') + ' ' + (unidade_morador.numero or '') if unidade_morador else '' %}
-<div class="modal fade show" id="modalAddMorador" tabindex="-1" style="display:block;" data-bs-backdrop="static">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="/moradores/adicionar" method="post">
-                <input type="hidden" name="unidade_id" value="{{ unidade_id_morador }}">
-                <div class="modal-header">
-                    <h5 class="modal-title">Adicionar Morador — {{ label_morador }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    {% set unidade_morador = unidades | selectattr('id', 'equalto', unidade_id_morador | int) | first %}
+    {% if unidade_morador %}
+        {% set label_morador = (unidade_morador.bloco or '') + ' ' + (unidade_morador.numero or '') %}
+        <div class="modal fade show" id="modalAddMorador" tabindex="-1" style="display:block;" data-bs-backdrop="static">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form action="/moradores/adicionar" method="post">
+                        <input type="hidden" name="unidade_id" value="{{ unidade_id_morador }}">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Adicionar Morador — {{ label_morador }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Nome *</label>
+                                <input type="text" name="nome" class="form-control" required autofocus>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Telefone WhatsApp *</label>
+                                <input type="text" name="telefone" class="form-control" placeholder="5584987654321" required>
+                                <div class="form-text">Com código do país (55 + DDD + número).</div>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="principal" id="checkPrincipal">
+                                <label class="form-check-label" for="checkPrincipal">
+                                    Definir como morador principal (receberá o aviso por padrão)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Adicionar</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Nome *</label>
-                        <input type="text" name="nome" class="form-control" required autofocus>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Telefone WhatsApp *</label>
-                        <input type="text" name="telefone" class="form-control" placeholder="5584987654321" required>
-                        <div class="form-text">Com código do país (55 + DDD + número).</div>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="principal" id="checkPrincipal">
-                        <label class="form-check-label" for="checkPrincipal">
-                            Definir como morador principal (receberá o aviso por padrão)
-                        </label>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Adicionar</button>
-                </div>
-            </form>
+            </div>
         </div>
-    </div>
-</div>
+    {% endif %}
+{% endif %}
 
 <p class="text-muted mt-3 small">
     <i class="bi bi-star-fill text-warning me-1"></i> Morador principal recebe o aviso por padrão.
@@ -227,12 +218,10 @@ function abrirAddMorador(unidadeId, unidadeLabel) {
     new bootstrap.Modal(document.getElementById('modalAddMorador')).show();
 }
 
-// Abrir modal automaticamente se houver unidade_id na URL
 window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     const unidadeId = params.get('unidade_id');
     if (unidadeId) {
-        // Buscar label da unidade
         fetch(`/api/unidades`)
             .then(r => r.json())
             .then(unidades => {
@@ -242,11 +231,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => abrirAddMorador(unidadeId, label), 100);
                 }
             })
-            .catch(err => {
-                console.error('Erro ao buscar unidade:', err);
-                // Fallback: tentar abrir com ID apenas
-                setTimeout(() => abrirAddMorador(unidadeId, `Unidade ${unidadeId}`), 100);
-            });
+            .catch(err => console.error('Erro ao buscar unidade:', err));
     }
 });
 </script>
