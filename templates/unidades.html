@@ -175,13 +175,16 @@
 </div>
 
 {# Modal Adicionar Morador (compartilhado, preenchido por JS) #}
-<div class="modal fade" id="modalAddMorador" tabindex="-1">
+{% if unidade_id_morador %}
+{% set unidade_morador = unidades | selectattr('id', 'equalto', unidade_id_morador | int) | first %}
+{% set label_morador = (unidade_morador.bloco or '') + ' ' + (unidade_morador.numero or '') if unidade_morador else '' %}
+<div class="modal fade show" id="modalAddMorador" tabindex="-1" style="display:block;" data-bs-backdrop="static">
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="/moradores/adicionar" method="post">
-                <input type="hidden" name="unidade_id" id="addMoradorUnidadeId">
+                <input type="hidden" name="unidade_id" value="{{ unidade_id_morador }}">
                 <div class="modal-header">
-                    <h5 class="modal-title">Adicionar Morador — <span id="addMoradorUnidadeLabel"></span></h5>
+                    <h5 class="modal-title">Adicionar Morador — {{ label_morador }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">

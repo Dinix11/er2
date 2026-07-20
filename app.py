@@ -713,7 +713,21 @@ def unidades():
                  busca.lower() in (u['nome_residente'] or '').lower() or
                  busca.lower() in (u['bloco'] or '').lower()]
     
-    return render_template('unidades.html', unidades=lista, pend_map=pend_counts, moradores_map=moradores_map, busca=busca)
+    # Verifica se deve abrir modal de morador automaticamente
+    unidade_id_morador = request.args.get('unidade_id', '').strip()
+    
+    return render_template('unidades.html', 
+                         unidades=lista, 
+                         pend_map=pend_counts, 
+                         moradores_map=moradores_map, 
+                         busca=busca,
+                         unidade_id_morador=unidade_id_morador)
+
+
+@app.route('/cadastrar-morador/<int:unidade_id>')
+def cadastrar_morador_redirect(unidade_id):
+    """Redireciona para página de unidades com modal de morador aberto"""
+    return redirect(url_for('unidades', unidade_id=unidade_id))
 
 
 @app.route('/unidades/adicionar', methods=['POST'])
