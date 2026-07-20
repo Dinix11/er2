@@ -14,6 +14,19 @@
     </div>
 </div>
 
+{# Busca rápida #}
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" id="busca-unidade" class="form-control" placeholder="Buscar por bloco ou número do apartamento..." oninput="filtrarUnidades()">
+            <button class="btn btn-outline-secondary" type="button" onclick="limparBusca()">
+                <i class="bi bi-x-circle"></i> Limpar
+            </button>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -216,6 +229,25 @@ function abrirAddMorador(unidadeId, unidadeLabel) {
     document.getElementById('addMoradorUnidadeId').value = unidadeId;
     document.getElementById('addMoradorUnidadeLabel').textContent = unidadeLabel.trim();
     new bootstrap.Modal(document.getElementById('modalAddMorador')).show();
+}
+
+function filtrarUnidades() {
+    const termo = document.getElementById('busca-unidade').value.toLowerCase().trim();
+    const linhas = document.querySelectorAll('tbody tr');
+    
+    linhas.forEach(linha => {
+        const texto = linha.textContent.toLowerCase();
+        if (texto.includes(termo)) {
+            linha.style.display = '';
+        } else {
+            linha.style.display = 'none';
+        }
+    });
+}
+
+function limparBusca() {
+    document.getElementById('busca-unidade').value = '';
+    filtrarUnidades();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
