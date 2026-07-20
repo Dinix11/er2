@@ -407,6 +407,28 @@ window.addEventListener('load', () => {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
         document.querySelector('.container').prepend(div);
     }
+    
+    // Retorno automático do cadastro de morador
+    const unidadeId = params.get('unidade_id');
+    const moradorId = params.get('morador_id');
+    if (unidadeId && moradorId) {
+        // Selecionar a unidade
+        const selectUnidade = document.getElementById('busca-unidade');
+        if (selectUnidade) {
+            selectUnidade.value = unidadeId;
+        }
+        // Confirmar unidade e selecionar morador
+        setTimeout(() => {
+            confirmarUnidade();
+            // Selecionar o morador após carregar
+            setTimeout(() => {
+                const selectMorador = document.getElementById('select-morador');
+                if (selectMorador && moradorId) {
+                    selectMorador.value = moradorId;
+                }
+            }, 500);
+        }, 300);
+    }
 });
 </script>
 {% endblock %}

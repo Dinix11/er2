@@ -648,19 +648,26 @@ def adicionar_morador():
         return redirect(url_for('unidades'))
 
     conn = get_db()
+    morador_id = None
     try:
         if principal:
             conn.execute("UPDATE moradores SET principal=0 WHERE unidade_id=?", (unidade_id,))
-        conn.execute("INSERT INTO moradores (unidade_id, nome, telefone, principal) VALUES (?,?,?,?)",
+        cur = conn.execute("INSERT INTO moradores (unidade_id, nome, telefone, principal) VALUES (?,?,?,?)",
                     (unidade_id, nome, telefone, principal))
         conn.commit()
+        morador_id = cur.lastrowid
         flash('Morador cadastrado!', 'success')
     except Exception as e:
         print("Erro SQLite add morador:", e)
         flash('Erro ao cadastrar morador.', 'danger')
     finally:
         conn.close()
-    return redirect(url_for('unidades'))
+    
+    # Redirecionar para página inicial com unidade e morador pré-selecionados
+    if morador_id:
+        return redirect(url_for('index', unidade_id=unidade_id, morador_id=morador_id))
+    else:
+        return redirect(url_for('index', unidade_id=unidade_id))
 
 
 @app.route('/moradores/excluir/<int:morador_id>', methods=['POST'])
