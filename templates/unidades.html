@@ -225,7 +225,7 @@ function abrirAddMorador(unidadeId, unidadeLabel) {
 }
 
 // Abrir modal automaticamente se houver unidade_id na URL
-window.addEventListener('load', () => {
+window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     const unidadeId = params.get('unidade_id');
     if (unidadeId) {
@@ -236,13 +236,13 @@ window.addEventListener('load', () => {
                 const unidade = unidades.find(u => u.id == unidadeId);
                 if (unidade) {
                     const label = `${unidade.bloco || ''} ${unidade.numero}`.trim();
-                    setTimeout(() => abrirAddMorador(unidadeId, label), 300);
+                    setTimeout(() => abrirAddMorador(unidadeId, label), 100);
                 }
             })
             .catch(err => {
                 console.error('Erro ao buscar unidade:', err);
                 // Fallback: tentar abrir com ID apenas
-                setTimeout(() => abrirAddMorador(unidadeId, `Unidade ${unidadeId}`), 300);
+                setTimeout(() => abrirAddMorador(unidadeId, `Unidade ${unidadeId}`), 100);
             });
     }
 });
