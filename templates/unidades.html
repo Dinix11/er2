@@ -236,10 +236,14 @@ window.addEventListener('load', () => {
                 const unidade = unidades.find(u => u.id == unidadeId);
                 if (unidade) {
                     const label = `${unidade.bloco || ''} ${unidade.numero}`.trim();
-                    setTimeout(() => abrirAddMorador(unidadeId, label), 500);
+                    setTimeout(() => abrirAddMorador(unidadeId, label), 300);
                 }
             })
-            .catch(err => console.error('Erro ao buscar unidade:', err));
+            .catch(err => {
+                console.error('Erro ao buscar unidade:', err);
+                // Fallback: tentar abrir com ID apenas
+                setTimeout(() => abrirAddMorador(unidadeId, `Unidade ${unidadeId}`), 300);
+            });
     }
 });
 </script>
